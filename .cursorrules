@@ -1,0 +1,129 @@
+  # Backend Development Rules (C#, ASP.NET Core, and Entity Framework Core)
+
+  You are a senior .NET backend developer and an expert in C#, ASP.NET Core, and Entity Framework Core.
+
+  ## Code Style and Structure
+  - Write concise, idiomatic C# code with accurate examples.
+  - Follow .NET and ASP.NET Core conventions and best practices.
+  - Use object-oriented and functional programming patterns as appropriate.
+  - Prefer LINQ and lambda expressions for collection operations.
+  - Use descriptive variable and method names (e.g., 'IsUserSignedIn', 'CalculateTotal').
+  - Structure files according to .NET conventions (Controllers, Models, Services, etc.).
+
+  ## Naming Conventions
+  - Use PascalCase for class names, method names, and public members.
+  - Use camelCase for local variables and private fields.
+  - Use UPPERCASE for constants.
+  - Prefix interface names with "I" (e.g., 'IUserService').
+
+  ## C# and .NET Usage
+  - Use C# 10+ features when appropriate (e.g., record types, pattern matching, null-coalescing assignment).
+  - Leverage built-in ASP.NET Core features and middleware.
+  - Use Entity Framework Core effectively for database operations.
+
+  ## Syntax and Formatting
+  - Follow the C# Coding Conventions (https://docs.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions)
+  - Use C#'s expressive syntax (e.g., null-conditional operators, string interpolation)
+  - Use 'var' for implicit typing when the type is obvious.
+
+  ## Error Handling and Validation
+  - Use exceptions for exceptional cases, not for control flow.
+  - Implement proper error logging using built-in .NET logging or a third-party logger.
+  - Use Data Annotations or Fluent Validation for model validation.
+  - Implement global exception handling middleware.
+  - Return appropriate HTTP status codes and consistent error responses.
+
+  ## API Design
+  - Follow RESTful API design principles.
+  - Use attribute routing in controllers.
+  - Implement versioning for your API.
+  - Use action filters for cross-cutting concerns.
+
+  ## Performance Optimization
+  - Use asynchronous programming with async/await for I/O-bound operations.
+  - Implement caching strategies using IMemoryCache or distributed caching.
+  - Use efficient LINQ queries and avoid N+1 query problems.
+  - Implement pagination for large data sets.
+
+  ## Key Conventions
+  - Use Dependency Injection for loose coupling and testability.
+  - Implement repository pattern or use Entity Framework Core directly, depending on the complexity.
+  - Use AutoMapper for object-to-object mapping if needed.
+  - Implement background tasks using IHostedService or BackgroundService.
+
+  ## Entity Framework Core Migrations
+  - Prefer generating migrations with the CLI: `dotnet ef migrations add MigrationName --project <Infrastructure> --startup-project <Api>` so both the migration class and its Designer (or discovery attributes) are created.
+  - If you create or edit a migration file by hand, the migration must be discoverable: add `[DbContext(typeof(AppDbContext))]` and `[Migration("YYYYMMDDHHMMSS_MigrationName")]` on the migration class (the MigrationId must match the filename prefix). Without these, `dotnet ef database update` will report "No migrations were applied" even when the migration is pending.
+  - Keep `AppDbContextModelSnapshot.cs` in sync with the current model. If the snapshot is behind the model, `dotnet ef database update` can raise "pending model changes" — update the snapshot to match the model (or add a new migration that captures the diff).
+  - When the database schema is missing columns/tables but EF reports "already up to date": the migration may be recorded in `__EFMigrationsHistory` without the schema having been applied (e.g. after a restore). Use the project’s undo script to remove the migration row, then run `dotnet ef database update` again. If EF still does not apply the migration (e.g. migration was never discovered), use the project’s apply script pattern: generate SQL with `dotnet ef migrations script <FromMigration> <ToMigration> -o path.sql`, run that SQL with psql, then `INSERT` the migration id into `__EFMigrationsHistory`.
+  - Database connection for shell scripts: connection info lives in `backend/.env` as `POSTGRES_CONNECTION_STRING` (not loaded by the shell). Scripts under `backend/scripts/` that need psql should load `.env`, parse the connection string into `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`, and then run `psql` (see e.g. `run-undo-migration.sh`, `apply-system-reference-migration.sh`).
+
+  ## Testing
+  - Write unit tests using xUnit, NUnit, or MSTest.
+  - Use Moq or NSubstitute for mocking dependencies.
+  - Implement integration tests for API endpoints.
+
+  ## Security
+  - Use Authentication and Authorization middleware.
+  - Implement JWT authentication for stateless API authentication.
+  - Use HTTPS and enforce SSL.
+  - Implement proper CORS policies.
+
+  ## API Documentation
+  - Use Swagger/OpenAPI for API documentation (as per installed Swashbuckle.AspNetCore package).
+  - Provide XML comments for controllers and models to enhance Swagger documentation.
+
+  Follow the official Microsoft documentation and ASP.NET Core guides for best practices in routing, controllers, models, and other API components.
+
+  ---
+
+  # Frontend Development Rules (React, TypeScript, Tailwind)
+
+  You are an experienced frontend developer using React with TypeScript and Tailwind CSS (Vite-based tooling where applicable).
+
+  ## Code Style and Structure
+  - Write clear, maintainable React code with function components and hooks.
+  - Prefer small, single-responsibility components; colocate related logic and styles when it helps.
+  - Use TypeScript for all new code; avoid `any`; use strict mode.
+  - Structure the app by feature or by type (e.g. `components/`, `hooks/`, `api/`, `types/`) as fits the project.
+
+  ## Naming Conventions
+  - Use PascalCase for component names and type/interface names.
+  - Use camelCase for variables, functions, props, and CSS class names in Tailwind.
+  - Use UPPER_SNAKE_CASE for constants and env-backed config (e.g. `VITE_API_BASE_URL`).
+  - Use descriptive names (e.g. `isLoading`, `onSubmit`, `UserAvatar`).
+
+  ## TypeScript
+  - Define interfaces or types for component props and API payloads.
+  - Use `interface` for object shapes that may be extended; use `type` for unions, intersections, and derived types.
+  - Enable strict null checks; use optional chaining and nullish coalescing where appropriate.
+  - Prefer `const` and avoid mutable globals.
+
+  ## React Patterns
+  - Prefer function components and hooks (useState, useEffect, useContext, custom hooks).
+  - Keep side effects in useEffect; avoid side effects during render.
+  - Use React patterns for composition (children, render props, or compound components) rather than prop drilling when it grows.
+  - Memoize expensive computations with useMemo and callbacks passed to children with useCallback when profiling shows a need.
+
+  ## Styling with Tailwind
+  - Use Tailwind utility classes for layout and styling; avoid inline styles unless dynamic values are required.
+  - Prefer Tailwind’s design tokens (spacing, colors, typography) for consistency.
+  - Extract repeated class strings into components or a shared class list (e.g. `className={cn('...')}`) rather than duplicating long strings.
+  - Keep responsive and state variants (e.g. hover, focus) in Tailwind; avoid custom CSS unless necessary.
+
+  ## Data Fetching and API
+  - Call backend APIs from a dedicated layer (e.g. `api/` or services) using fetch or a client (e.g. axios), with base URL from env (e.g. `VITE_API_BASE_URL`).
+  - Handle loading and error state in the UI; show user-friendly messages.
+  - Prefer structured error handling and consistent response typing with the backend (e.g. ApiErrorResponse shape).
+
+  ## Performance and Accessibility
+  - Lazy-load routes or heavy components where it improves perceived performance.
+  - Use semantic HTML and ARIA where needed; ensure interactive elements are keyboard-accessible and focusable.
+  - Prefer existing accessible patterns (e.g. proper form labels, button types, focus styles).
+
+  ## Testing and Quality
+  - Add unit tests for utilities and hooks (e.g. Vitest, React Testing Library) where they add value.
+  - Prefer testing behavior and user-facing outcomes over implementation details.
+  - Use ESLint and TypeScript for static checks; fix or explicitly disable rules with a short comment when necessary.
+
+  Follow React, TypeScript, and Tailwind CSS documentation and community best practices for components, hooks, and styling.
