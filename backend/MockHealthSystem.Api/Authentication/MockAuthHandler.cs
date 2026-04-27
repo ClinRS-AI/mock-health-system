@@ -39,16 +39,15 @@ public sealed class MockAuthHandler : AuthenticationHandler<AuthenticationScheme
             return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
         }
 
-        var authHeader = Request.Headers.Authorization.ToString();
-        if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            return AuthenticateResult.Fail("Missing or invalid Authorization header.");
-        }
-
-        var token = authHeader["Bearer ".Length..].Trim();
-
         if (string.Equals(mode, "Bearer", StringComparison.OrdinalIgnoreCase))
         {
+            var authHeader = Request.Headers.Authorization.ToString();
+            if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                return AuthenticateResult.Fail("Missing or invalid Authorization header.");
+            }
+
+            var token = authHeader["Bearer ".Length..].Trim();
             if (string.IsNullOrEmpty(settings.BearerToken))
             {
                 return AuthenticateResult.Fail("Bearer token is not configured.");
@@ -65,8 +64,39 @@ public sealed class MockAuthHandler : AuthenticationHandler<AuthenticationScheme
             return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
         }
 
+        if (string.Equals(mode, "CCAPIKey", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(settings.BearerToken))
+            {
+                return AuthenticateResult.Fail("CCAPIKey secret is not configured.");
+            }
+
+            if (!Request.Headers.TryGetValue("CCAPIKey", out var headerValues))
+            {
+                return AuthenticateResult.Fail("Missing CCAPIKey header.");
+            }
+
+            var apiKey = headerValues.ToString().Trim();
+            if (!string.Equals(apiKey, settings.BearerToken, StringComparison.Ordinal))
+            {
+                return AuthenticateResult.Fail("Invalid CCAPIKey value.");
+            }
+
+            var identity = new ClaimsIdentity(Scheme.Name);
+            identity.AddClaim(new Claim(ClaimTypes.Name, "mock-ccapi-client"));
+            var principal = new ClaimsPrincipal(identity);
+            return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
+        }
+
         if (string.Equals(mode, "OAuth", StringComparison.OrdinalIgnoreCase))
         {
+            var authHeader = Request.Headers.Authorization.ToString();
+            if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                return AuthenticateResult.Fail("Missing or invalid Authorization header.");
+            }
+
+            var token = authHeader["Bearer ".Length..].Trim();
             var now = DateTime.UtcNow;
 
             var tokenEntity = await _dbContext.AuthTokens

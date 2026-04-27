@@ -101,7 +101,8 @@ const AuthSettingsPage: React.FC = () => {
 
       const payload: UpdateAuthSettingsRequest = {
         mode: form.mode,
-        bearerToken: form.mode === "Bearer" ? form.bearerToken : undefined,
+        bearerToken:
+          form.mode === "Bearer" || form.mode === "CCAPIKey" ? form.bearerToken : undefined,
         oAuthClientId: form.mode === "OAuth" ? form.oAuthClientId : undefined,
         oAuthClientSecret: form.mode === "OAuth" ? form.oAuthClientSecret : undefined,
         accessTokenLifetimeMinutes: form.accessTokenLifetimeMinutes,
@@ -179,8 +180,8 @@ const AuthSettingsPage: React.FC = () => {
                 {form.mode === "None" ? "OPEN" : "PROTECTED"}
               </span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {(["None", "Bearer", "OAuth"] as AuthMode[]).map((mode) => (
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              {(["None", "Bearer", "CCAPIKey", "OAuth"] as AuthMode[]).map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -195,6 +196,7 @@ const AuthSettingsPage: React.FC = () => {
                   <div className="text-xs text-slate-500">
                     {mode === "None" && "No authentication required."}
                     {mode === "Bearer" && "Shared secret in Authorization: Bearer header."}
+                    {mode === "CCAPIKey" && "Shared secret in CCAPIKey header."}
                     {mode === "OAuth" && "Issue access and refresh tokens via Auth API."}
                   </div>
                 </button>
@@ -202,14 +204,24 @@ const AuthSettingsPage: React.FC = () => {
             </div>
           </section>
 
-          {form.mode === "Bearer" && (
+          {(form.mode === "Bearer" || form.mode === "CCAPIKey") && (
             <section className="space-y-3 border-t border-slate-100 pt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-medium text-slate-700">Bearer token</h2>
+                  <h2 className="text-sm font-medium text-slate-700">
+                    {form.mode === "CCAPIKey" ? "CCAPIKey shared secret" : "Bearer token"}
+                  </h2>
                   <p className="text-xs text-slate-500">
-                    Clients must send <code>Authorization: Bearer &lt;token&gt;</code> on each
-                    request.
+                    {form.mode === "CCAPIKey" ? (
+                      <>
+                        Clients must send <code>CCAPIKey: &lt;secret&gt;</code> on each request.
+                      </>
+                    ) : (
+                      <>
+                        Clients must send <code>Authorization: Bearer &lt;token&gt;</code> on each
+                        request.
+                      </>
+                    )}
                   </p>
                 </div>
                 <button
@@ -227,7 +239,7 @@ const AuthSettingsPage: React.FC = () => {
                     className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                     value={form.bearerToken}
                     onChange={(e) => handleChange("bearerToken", e.target.value)}
-                    placeholder="Shared bearer token"
+                    placeholder={form.mode === "CCAPIKey" ? "Shared CCAPIKey secret" : "Shared bearer token"}
                   />
                   <button
                     type="button"
@@ -247,7 +259,11 @@ const AuthSettingsPage: React.FC = () => {
                 </div>
                 <div className="text-xs text-slate-500">
                   Example header:{" "}
-                  <code>Authorization: Bearer {mask(form.bearerToken || "your-token")}</code>
+                  {form.mode === "CCAPIKey" ? (
+                    <code>CCAPIKey: {mask(form.bearerToken || "your-secret")}</code>
+                  ) : (
+                    <code>Authorization: Bearer {mask(form.bearerToken || "your-token")}</code>
+                  )}
                 </div>
               </div>
             </section>

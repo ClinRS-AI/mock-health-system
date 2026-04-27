@@ -83,9 +83,10 @@ public sealed class AuthSettingsController : ControllerBase
         var normalizedMode = model.Mode.Trim();
         if (!string.Equals(normalizedMode, "None", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(normalizedMode, "Bearer", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(normalizedMode, "CCAPIKey", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(normalizedMode, "OAuth", StringComparison.OrdinalIgnoreCase))
         {
-            return BadRequest("Mode must be one of: None, Bearer, OAuth.");
+            return BadRequest("Mode must be one of: None, Bearer, CCAPIKey, OAuth.");
         }
 
         var existing = await _db.AuthSettings.FirstOrDefaultAsync(cancellationToken);

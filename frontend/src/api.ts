@@ -10,7 +10,7 @@ export async function getApiStatus(): Promise<string> {
   return typeof response.data === "string" ? response.data : JSON.stringify(response.data);
 }
 
-export type AuthMode = "None" | "Bearer" | "OAuth";
+export type AuthMode = "None" | "Bearer" | "CCAPIKey" | "OAuth";
 
 export interface AuthSettings {
   mode: AuthMode;
