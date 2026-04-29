@@ -5,7 +5,7 @@ export default defineConfig(({ mode }) => {
   const baseConfig = {
     plugins: [react()],
     server: {
-      port: 5174
+      port: 5176
     }
   };
 

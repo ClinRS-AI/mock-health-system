@@ -39,6 +39,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AuthSettings> AuthSettings => Set<AuthSettings>();
     public DbSet<AuthToken> AuthTokens => Set<AuthToken>();
     public DbSet<ApiRequestLog> ApiRequestLogs => Set<ApiRequestLog>();
+    public DbSet<ReportQueryDefinition> ReportQueryDefinitions => Set<ReportQueryDefinition>();
+    public DbSet<Staff> Staff => Set<Staff>();
+    public DbSet<AuditEntryType> AuditEntryTypes => Set<AuditEntryType>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -108,5 +112,101 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<ApiRequestLog>()
             .HasIndex(x => x.StatusCode);
+
+        modelBuilder.Entity<ReportQueryDefinition>()
+            .HasKey(x => x.Id);
+
+        modelBuilder.Entity<ReportQueryDefinition>()
+            .Property(x => x.PKey)
+            .IsRequired()
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<ReportQueryDefinition>()
+            .Property(x => x.SqlQuery)
+            .IsRequired();
+
+        modelBuilder.Entity<ReportQueryDefinition>()
+            .HasIndex(x => x.PKey)
+            .IsUnique();
+
+        modelBuilder.Entity<ReportQueryDefinition>()
+            .Property(x => x.CreatedAtUtc)
+            .HasDefaultValueSql("NOW()");
+
+        modelBuilder.Entity<ReportQueryDefinition>()
+            .Property(x => x.UpdatedAtUtc)
+            .HasDefaultValueSql("NOW()");
+
+        modelBuilder.Entity<Staff>()
+            .HasKey(x => x.Id);
+
+        modelBuilder.Entity<Staff>()
+            .Property(x => x.FirstName)
+            .IsRequired()
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<Staff>()
+            .Property(x => x.LastName)
+            .IsRequired()
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<AuditEntryType>()
+            .HasKey(x => x.Id);
+
+        modelBuilder.Entity<AuditEntryType>()
+            .Property(x => x.Code)
+            .IsRequired()
+            .HasMaxLength(64);
+
+        modelBuilder.Entity<AuditEntryType>()
+            .Property(x => x.DisplayName)
+            .IsRequired()
+            .HasMaxLength(256);
+
+        modelBuilder.Entity<AuditEntryType>()
+            .HasIndex(x => x.Code)
+            .IsUnique();
+
+        modelBuilder.Entity<AuditLog>()
+            .HasKey(x => x.Id);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(x => x.CreatedByUser)
+            .IsRequired()
+            .HasMaxLength(256);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(x => x.StudyPKey)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(x => x.CreatedTimeUtc);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(x => x.StaffPKey);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(x => x.PatientPKey);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(x => x.AuditEntryTypeId);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasOne(x => x.Staff)
+            .WithMany()
+            .HasForeignKey(x => x.StaffPKey)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasOne(x => x.Patient)
+            .WithMany()
+            .HasForeignKey(x => x.PatientPKey)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasOne(x => x.AuditEntryType)
+            .WithMany()
+            .HasForeignKey(x => x.AuditEntryTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

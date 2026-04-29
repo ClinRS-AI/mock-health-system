@@ -28,7 +28,7 @@ This repository is a **lightweight mock health system** to develop against. It p
    - Copy `.env.example` to `.env` or `.env.local`.
    - Set `VITE_API_BASE_URL` to your backend URL (e.g. `http://localhost:5000`).
    - Run `npm install`.
-   - Start the dev server: `npm run dev` (default: `http://localhost:5173`).
+   - Start the dev server: `npm run dev` (default: `http://localhost:5176`).
 
 4. **Verify**  
    Open the frontend in your browser; use the “Check API status” action to confirm the API is reachable.
@@ -42,7 +42,7 @@ This repository is a **lightweight mock health system** to develop against. It p
 
 ### Configuration reference
 
-- **Backend** (`backend/.env`): `POSTGRES_CONNECTION_STRING`, `BACKEND_URL` (default `http://localhost:5000`), `FRONTEND_URL` (default `http://localhost:5173`). Also uses `appsettings.json` and system environment variables.
+- **Backend** (`backend/.env`): `POSTGRES_CONNECTION_STRING`, `BACKEND_URL` (default `http://localhost:5000`), `FRONTEND_URL` (default `http://localhost:5176`), `SOAP_REPORT_PASSWORD` (required for SOAP report endpoint). Also uses `appsettings.json` and system environment variables.
 - **Frontend** (`frontend/.env` or `.env.local`): `VITE_API_BASE_URL` (e.g. `http://localhost:5000`).
 
 ### Initial database setup
@@ -86,4 +86,79 @@ To see if a proxy is set: `echo $HTTP_PROXY $HTTPS_PROXY`. To clear it for the w
 ### Known vulnerabilities (frontend)
 
 Running `npm audit` in `frontend/` may report **moderate** vulnerabilities in the **ajv** dependency (used by ESLint). These come from ESLint’s own dependencies; there is no patched release that fixes them without breaking the current ESLint setup. The template uses an **override** in `frontend/package.json` to fix **minimatch** (high severity); the remaining ajv advisories are accepted as known, low-risk (ReDoS in dev-only tooling). You can run `npm audit` in `frontend/` for details and re-evaluate as dependencies are updated.
+
+### SOAP report endpoint (Clinical Conductor-style)
+
+The backend includes a SOAP report endpoint that runs predefined SQL by `pkey` and returns tabular results.
+
+- **WSDL**: `GET /soap/report?wsdl`
+- **SOAP endpoint**: `POST /soap/report`
+- **Authentication**: SOAP body includes `password`; backend validates against `SOAP_REPORT_PASSWORD`.
+- **Execution model**: SOAP body includes `pkey`; backend looks up SQL in `ReportQueryDefinitions` table and executes it.
+- **Safety**: only single `SELECT`/`WITH` queries are allowed.
+
+#### SQL definition storage
+
+The table `ReportQueryDefinitions` stores report query definitions:
+
+- `PKey` (unique key passed by SOAP clients)
+- `SqlQuery` (query text)
+
+Seed examples are included in migration:
+
+- `PATIENT_COUNT`
+- `PATIENTS_BY_STATUS`
+- `AUDIT_RECENT`
+- `AUDIT_BY_STAFF`
+- `AUDIT_BY_PATIENT`
+
+#### Audit log tables for SOAP reporting
+
+The SOAP report feature now includes audit-focused domain tables:
+
+- `Staff` — staff directory used for audit actor references.
+- `AuditEntryTypes` — lookup of audit event types (e.g. Login, Logout, Patient Updated).
+- `AuditLogs` — audit entries with staff/patient/study references and timestamps.
+
+Seeded `AuditEntryTypes` values:
+
+- `PATIENT_UPDATED`
+- `LOGIN`
+- `LOGOUT`
+- `PATIENT_VIEWED`
+- `STAFF_PROFILE_UPDATED`
+- `PATIENT_CREATED`
+- `PATIENT_DELETED`
+
+Typical audit report joins:
+
+- `AuditLogs.AuditEntryTypeId -> AuditEntryTypes.Id`
+- `AuditLogs.StaffPKey -> Staff.Id` (nullable)
+- `AuditLogs.PatientPKey -> Patients.Id` (nullable)
+
+Seeded audit report pkeys:
+
+- `AUDIT_RECENT` — latest audit entries with staff/type details.
+- `AUDIT_BY_STAFF` — audit entries grouped/sorted by staff.
+- `AUDIT_BY_PATIENT` — audit entries where a patient reference exists.
+
+#### SOAP request example
+
+```xml
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:rep="urn:mockhealthsystem:soap:report:v1">
+  <soap:Body>
+    <rep:RunReport>
+      <rep:password>your-shared-password</rep:password>
+      <rep:pkey>AUDIT_RECENT</rep:pkey>
+    </rep:RunReport>
+  </soap:Body>
+</soap:Envelope>
+```
+
+#### SOAP response shape
+
+`RunReportResponse` contains:
+
+- `Columns` -> list of `Column` names from SQL result set
+- `Rows` -> list of `Row`, each containing ordered `Value` entries
 

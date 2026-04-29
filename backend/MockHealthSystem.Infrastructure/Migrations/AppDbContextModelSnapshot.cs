@@ -1055,6 +1055,147 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.ToTable("Relations");
                 });
 
+            modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.ReportQueryDefinition", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("PKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SqlQuery")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PKey")
+                        .IsUnique();
+
+                    b.ToTable("ReportQueryDefinitions");
+                });
+
+            modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Staff", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid?>("StaffUid")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Staff");
+                });
+
+            modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.AuditEntryType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("AuditEntryTypes");
+                });
+
+            modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.AuditLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AuditEntryTypeId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CreatedByUser")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime>("CreatedTimeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("PatientPKey")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceSystem")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("StaffPKey")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StudyPKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuditEntryTypeId");
+
+                    b.HasIndex("CreatedTimeUtc");
+
+                    b.HasIndex("PatientPKey");
+
+                    b.HasIndex("StaffPKey");
+
+                    b.ToTable("AuditLogs");
+                });
+
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Site", b =>
                 {
                     b.Property<int>("Id")
@@ -1113,6 +1254,31 @@ namespace MockHealthSystem.Infrastructure.Migrations
                         .HasForeignKey("ConditionTypeId");
 
                     b.Navigation("ConditionType");
+                });
+
+            modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.AuditLog", b =>
+                {
+                    b.HasOne("MockHealthSystem.Infrastructure.Data.Entities.AuditEntryType", "AuditEntryType")
+                        .WithMany()
+                        .HasForeignKey("AuditEntryTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MockHealthSystem.Infrastructure.Data.Entities.Patient", "Patient")
+                        .WithMany()
+                        .HasForeignKey("PatientPKey")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MockHealthSystem.Infrastructure.Data.Entities.Staff", "Staff")
+                        .WithMany()
+                        .HasForeignKey("StaffPKey")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AuditEntryType");
+
+                    b.Navigation("Patient");
+
+                    b.Navigation("Staff");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Patient", b =>

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using MockHealthSystem.Api.Authentication;
 using MockHealthSystem.Api.Middleware;
+using MockHealthSystem.Api.Soap;
 using MockHealthSystem.Api.Services;
 using MockHealthSystem.Infrastructure.Data;
 
@@ -102,6 +103,8 @@ builder.Services.AddControllers(options =>
 builder.Services.AddMemoryCache();
 
 builder.Services.AddScoped<IAuthSettingsService, AuthSettingsService>();
+builder.Services.AddScoped<IReportExecutionService, ReportExecutionService>();
+builder.Services.AddScoped<IReportSoapService, ReportSoapService>();
 
 builder.Services.AddAuthentication("Mock")
     .AddScheme<AuthenticationSchemeOptions, MockAuthHandler>("Mock", _ => { });

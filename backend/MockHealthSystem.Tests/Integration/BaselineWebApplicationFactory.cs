@@ -23,7 +23,7 @@ public sealed class MockHealthSystemWebApplicationFactory : WebApplicationFactor
                 ["Jwt:Key"] = "integration-test-key-min-32-characters-long",
                 ["Jwt:Issuer"] = "MockHealthSystem.Api",
                 ["Jwt:Audience"] = "MockHealthSystem.App",
-                ["FRONTEND_URL"] = "http://localhost:5174"
+                ["FRONTEND_URL"] = "http://localhost:5176"
             });
         });
 

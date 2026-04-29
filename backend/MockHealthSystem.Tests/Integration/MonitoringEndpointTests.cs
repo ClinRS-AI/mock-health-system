@@ -62,7 +62,7 @@ public sealed class MonitoringEndpointTests : IClassFixture<MockHealthSystemWebA
         // Trigger a health request with Origin equal to the frontend URL; this should be excluded by middleware.
         using (var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/health"))
         {
-            request.Headers.Add("Origin", "http://localhost:5174");
+            request.Headers.Add("Origin", "http://localhost:5176");
             var response = await client.SendAsync(request);
             response.EnsureSuccessStatusCode();
         }
@@ -77,7 +77,7 @@ public sealed class MonitoringEndpointTests : IClassFixture<MockHealthSystemWebA
         var newItems = afterItems.Where(a => beforeItems.All(b => b.Id != a.Id)).ToList();
         Assert.DoesNotContain(newItems, x =>
             x.Origin != null &&
-            x.Origin.Contains("http://localhost:5174", StringComparison.OrdinalIgnoreCase) &&
+            x.Origin.Contains("http://localhost:5176", StringComparison.OrdinalIgnoreCase) &&
             x.Path.Contains("/api/v1/health", StringComparison.OrdinalIgnoreCase));
     }
 }
