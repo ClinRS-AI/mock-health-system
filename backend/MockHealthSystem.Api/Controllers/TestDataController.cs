@@ -3,6 +3,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MockHealthSystem.Api.Models.Patients;
 using MockHealthSystem.Api.Services;
 using MockHealthSystem.Infrastructure.Data;
 using MockHealthSystem.Infrastructure.Data.Entities;
@@ -512,6 +513,169 @@ RESTART IDENTITY CASCADE;
     }
 
     /// <summary>
+    /// Looks up a random patient record from the database.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpGet("patients/random")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetRandomPatientAsync(CancellationToken cancellationToken)
+    {
+        if (!IsAdminRequest())
+        {
+            return Forbid();
+        }
+
+        var patientCount = await _db.Patients.CountAsync(cancellationToken);
+        if (patientCount == 0)
+        {
+            return NotFound();
+        }
+
+        var randomIndex = Random.Shared.Next(patientCount);
+        var patient = await _db.Patients
+            .Include(p => p.PrimarySite)
+            .Include(p => p.Phones)
+            .OrderBy(p => p.Id)
+            .Skip(randomIndex)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return patient == null ? NotFound() : Ok(PatientMappingService.ToViewModel(patient));
+    }
+
+    /// <summary>
+    /// Updates a patient record by ID for test-data management workflows.
+    /// </summary>
+    /// <param name="id">Patient ID.</param>
+    /// <param name="request">Updated patient record values.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="saveWithAudit">When true, also creates a simulated PATIENT_UPDATED audit log for a random active staff member.</param>
+    [HttpPut("patients/{id:int}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> UpdatePatientAsync(
+        [FromRoute] int id,
+        [FromBody] UpdateTestPatientRequest? request,
+        CancellationToken cancellationToken,
+        [FromQuery] bool saveWithAudit)
+    {
+        if (!IsAdminRequest())
+        {
+            return Forbid();
+        }
+
+        if (request == null)
+        {
+            return BadRequest("Request body is required.");
+        }
+
+        var patient = await _db.Patients
+            .Include(p => p.PrimarySite)
+            .Include(p => p.Phones)
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient == null)
+        {
+            return NotFound();
+        }
+
+        patient.PrimarySiteId = request.PrimarySite?.Id;
+        patient.DisplayName = request.DisplayName;
+        patient.Status = string.IsNullOrWhiteSpace(request.Status) ? patient.Status : request.Status.Trim();
+        patient.StatusReason = request.StatusReason;
+        patient.FirstName = string.IsNullOrWhiteSpace(request.FirstName) ? patient.FirstName : request.FirstName.Trim();
+        patient.MiddleName = request.MiddleName;
+        patient.LastName = string.IsNullOrWhiteSpace(request.LastName) ? patient.LastName : request.LastName.Trim();
+        patient.PhoneticName = request.PhoneticName;
+        patient.PreferredName = request.PreferredName;
+        patient.Title = request.Title;
+        patient.PrimaryEmailAddress = request.PrimaryEmail?.Email;
+        patient.PrimaryDoNotEmail = request.PrimaryEmail?.DoNotEmail ?? false;
+        patient.SecondaryEmailAddress = request.SecondaryEmail?.Email;
+        patient.SecondaryDoNotEmail = request.SecondaryEmail?.DoNotEmail ?? false;
+        patient.Country = request.Country;
+        patient.Address1 = request.Address1;
+        patient.Address2 = request.Address2;
+        patient.Address3 = request.Address3;
+        patient.City = request.City;
+        patient.State = request.State;
+        patient.Zip = request.Zip;
+        patient.DoNotMail = request.DoNotMail;
+        patient.RecruitmentTextOptIn = request.RecruitmentTextOptIn;
+        patient.PhoneTypeToText = request.PhoneTypeToText;
+        patient.Fax = request.Fax;
+        patient.DateOfBirth = request.DateOfBirth;
+        patient.DateOfDeath = request.DateOfDeath;
+        patient.GenderCode = request.GenderCode;
+        patient.Race = request.Race;
+        patient.Ethnicity = request.Ethnicity;
+        patient.NativeLanguage = request.NativeLanguage;
+        patient.MaritalStatus = request.MaritalStatus;
+        patient.WeightValue = request.Weight?.Value;
+        patient.WeightUnit = request.Weight?.Unit;
+        patient.HeightValue = request.Height?.Value;
+        patient.HeightUnit = request.Height?.Unit;
+        patient.Ssn = request.Ssn;
+        patient.Mrn = request.Mrn;
+        patient.ImportId = request.ImportId;
+        patient.ImportSourceId = request.ImportSourceId;
+        patient.ImportPatientId = request.ImportPatientId;
+        patient.Uid = request.Uid;
+        patient.ManagedMedicare = request.ManagedMedicare;
+        patient.CaregiverId = request.CaregiverId;
+        patient.Caregiver = request.Caregiver;
+
+        UpsertPatientPhone(patient, 1, request.Phone1);
+        UpsertPatientPhone(patient, 2, request.Phone2);
+        UpsertPatientPhone(patient, 3, request.Phone3);
+        UpsertPatientPhone(patient, 4, request.Phone4);
+
+        if (saveWithAudit)
+        {
+            var auditStaff = await _db.Staff
+                .AsNoTracking()
+                .Where(s => s.IsActive)
+                .ToListAsync(cancellationToken);
+            if (auditStaff.Count == 0)
+            {
+                return BadRequest("Save with Audit requires at least one active staff record.");
+            }
+
+            var auditType = await _db.AuditEntryTypes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Code == "PATIENT_UPDATED", cancellationToken);
+            if (auditType == null)
+            {
+                return BadRequest("Save with Audit requires a PATIENT_UPDATED audit entry type.");
+            }
+
+            var staff = auditStaff[Random.Shared.Next(auditStaff.Count)];
+            _db.AuditLogs.Add(new AuditLog
+            {
+                StaffPKey = staff.Id,
+                PatientPKey = patient.Id,
+                StudyPKey = $"STUDY-{Random.Shared.Next(100, 999)}",
+                CreatedTimeUtc = DateTime.UtcNow,
+                CreatedByUser = $"{staff.FirstName}.{staff.LastName}".ToLowerInvariant(),
+                AuditEntryTypeId = auditType.Id,
+                Details = $"Patient {patient.Id} updated via Test data management Save with Audit.",
+                SourceSystem = "MockHealthSystem"
+            });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var updated = await _db.Patients
+            .Include(p => p.PrimarySite)
+            .Include(p => p.Phones)
+            .FirstAsync(p => p.Id == patient.Id, cancellationToken);
+
+        return Ok(PatientMappingService.ToViewModel(updated));
+    }
+
+    /// <summary>
     /// Returns summary statistics for patient test data (counts and per-site distribution).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -703,6 +867,37 @@ RESTART IDENTITY CASCADE;
         return auditEntryType.Code.Contains("PATIENT", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static void UpsertPatientPhone(Patient patient, int slot, PatientPhoneViewModel? phoneModel)
+    {
+        var existing = patient.Phones.FirstOrDefault(p => p.Slot == slot);
+        if (phoneModel == null)
+        {
+            if (existing != null)
+            {
+                patient.Phones.Remove(existing);
+            }
+
+            return;
+        }
+
+        if (existing == null)
+        {
+            patient.Phones.Add(new PatientPhone
+            {
+                Slot = slot,
+                Number = phoneModel.Number,
+                RawNumber = phoneModel.RawNumber,
+                OutOfService = phoneModel.OutOfService
+            });
+
+            return;
+        }
+
+        existing.Number = phoneModel.Number;
+        existing.RawNumber = phoneModel.RawNumber;
+        existing.OutOfService = phoneModel.OutOfService;
+    }
+
     private bool IsAdminRequest()
     {
         // Always allow in Development for convenience, even if an admin key is configured.
@@ -746,6 +941,10 @@ RESTART IDENTITY CASCADE;
     {
         public int Id { get; set; }
         public Guid Uid { get; set; }
+    }
+
+    public sealed class UpdateTestPatientRequest : PatientViewModel
+    {
     }
 
     public sealed class GenerateStaffRequest

@@ -298,13 +298,55 @@ export async function addTestPatient(
 
 export interface LookupPatientResponse {
   id: number;
+  primarySite?: { id: number; uid?: string | null; name?: string | null } | null;
   uid?: string | null;
   displayName?: string | null;
   status?: string | null;
+  statusReason?: string | null;
+  phone1?: { rawNumber?: string | null; number?: string | null; outOfService?: boolean } | null;
+  phone2?: { rawNumber?: string | null; number?: string | null; outOfService?: boolean } | null;
+  phone3?: { rawNumber?: string | null; number?: string | null; outOfService?: boolean } | null;
+  phone4?: { rawNumber?: string | null; number?: string | null; outOfService?: boolean } | null;
+  customFields?: unknown[] | null;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
+  phoneticName?: string | null;
+  preferredName?: string | null;
+  title?: string | null;
   primaryEmail?: { email?: string; doNotEmail?: boolean } | null;
   secondaryEmail?: { email?: string; doNotEmail?: boolean } | null;
+  country?: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  address3?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  doNotMail?: boolean;
+  recruitmentTextOptIn?: boolean;
+  phoneTypeToText?: string | null;
+  fax?: string | null;
+  dateOfBirth?: string | null;
+  dateOfDeath?: string | null;
+  genderCode?: string | null;
+  race?: string | null;
+  ethnicity?: string | null;
+  nativeLanguage?: string | null;
+  maritalStatus?: string | null;
+  weight?: { value?: number | null; unit?: string | null } | null;
+  height?: { value?: number | null; unit?: string | null } | null;
+  ssn?: string | null;
+  mrn?: string | null;
+  importId?: number | null;
+  importSourceId?: string | null;
+  importPatientId?: string | null;
+  primaryInsurance?: unknown | null;
+  secondaryInsurance?: unknown | null;
+  managedMedicare?: boolean;
+  guardian?: unknown | null;
+  caregiverId?: number | null;
+  caregiver?: boolean;
 }
 
 export async function lookupTestPatient(
@@ -323,6 +365,38 @@ export async function lookupTestPatient(
 
   const response = await api.get<LookupPatientResponse>(
     `/api/v1/test-data/patients/lookup?${searchParams.toString()}`,
+    { headers }
+  );
+  return response.data;
+}
+
+export async function getRandomTestPatient(adminKey?: string): Promise<LookupPatientResponse> {
+  const headers: Record<string, string> = {};
+  if (adminKey) {
+    headers["X-Admin-Key"] = adminKey;
+  }
+
+  const response = await api.get<LookupPatientResponse>("/api/v1/test-data/patients/random", {
+    headers
+  });
+  return response.data;
+}
+
+export async function updateTestPatient(
+  id: number,
+  body: LookupPatientResponse,
+  adminKey?: string,
+  saveWithAudit?: boolean
+): Promise<LookupPatientResponse> {
+  const headers: Record<string, string> = {};
+  if (adminKey) {
+    headers["X-Admin-Key"] = adminKey;
+  }
+
+  const suffix = saveWithAudit ? "?saveWithAudit=true" : "";
+  const response = await api.put<LookupPatientResponse>(
+    `/api/v1/test-data/patients/${id}${suffix}`,
+    body,
     { headers }
   );
   return response.data;

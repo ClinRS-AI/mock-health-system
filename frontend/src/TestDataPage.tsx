@@ -5,7 +5,9 @@ import {
   generateRecentAuditEvents,
   resetTestPatients,
   addTestPatient,
+  getRandomTestPatient,
   lookupTestPatient,
+  updateTestPatient,
   type GeneratePatientsOptions,
   type GeneratePatientsResult,
   type GenerateStaffOptions,
@@ -49,8 +51,11 @@ const TestDataPage: React.FC = () => {
   const [addForm, setAddForm] = useState({ firstName: "", lastName: "", email: "" });
   const [lookupForm, setLookupForm] = useState({ id: "", uid: "", email: "" });
   const [lookupResult, setLookupResult] = useState<LookupPatientResponse | null>(null);
+  const [lookupEditJson, setLookupEditJson] = useState("");
+  const [isEditingLookup, setIsEditingLookup] = useState(false);
   const [lookupNotFound, setLookupNotFound] = useState(false);
   const [loadingLookup, setLoadingLookup] = useState(false);
+  const [savingLookupMode, setSavingLookupMode] = useState<"none" | "save" | "audit">("none");
   const [error, setError] = useState<string | null>(null);
 
   async function loadStats(currentAdminKey: string) {
@@ -188,6 +193,8 @@ const TestDataPage: React.FC = () => {
 
       const result = await lookupTestPatient(params, adminKey || undefined);
       setLookupResult(result);
+      setLookupEditJson(JSON.stringify(result, null, 2));
+      setIsEditingLookup(false);
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 404) {
@@ -200,6 +207,58 @@ const TestDataPage: React.FC = () => {
       }
     } finally {
       setLoadingLookup(false);
+    }
+  }
+
+  async function handleGetRandomPatient() {
+    try {
+      setLoadingLookup(true);
+      setError(null);
+      setLookupNotFound(false);
+
+      const result = await getRandomTestPatient(adminKey || undefined);
+      setLookupResult(result);
+      setLookupEditJson(JSON.stringify(result, null, 2));
+      setIsEditingLookup(false);
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 404) {
+        setLookupNotFound(true);
+        setLookupResult(null);
+      } else {
+        console.error(err);
+        setError("Unable to get a random patient. Check the admin key and backend.");
+      }
+    } finally {
+      setLoadingLookup(false);
+    }
+  }
+
+  async function handleSavePatientRecord(withAudit: boolean) {
+    if (!lookupResult) return;
+
+    try {
+      setSavingLookupMode(withAudit ? "audit" : "save");
+      setError(null);
+
+      const parsed = JSON.parse(lookupEditJson) as LookupPatientResponse;
+      const updated = await updateTestPatient(
+        lookupResult.id,
+        parsed,
+        adminKey || undefined,
+        withAudit
+      );
+      const refreshed = await lookupTestPatient({ id: updated.id }, adminKey || undefined);
+
+      setLookupResult(refreshed);
+      setLookupEditJson(JSON.stringify(refreshed, null, 2));
+      setIsEditingLookup(false);
+      await loadStats(adminKey);
+    } catch (err) {
+      console.error(err);
+      setError("Unable to save patient record. Ensure JSON is valid and check admin access.");
+    } finally {
+      setSavingLookupMode("none");
     }
   }
 
@@ -632,6 +691,14 @@ const TestDataPage: React.FC = () => {
               >
                 {loadingLookup ? "Looking up…" : "Lookup"}
               </button>
+              <button
+                type="button"
+                onClick={() => void handleGetRandomPatient()}
+                disabled={loadingLookup}
+                className="ml-2 inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 disabled:opacity-70"
+              >
+                {loadingLookup ? "Loading…" : "Get random"}
+              </button>
             </form>
             {lookupNotFound && (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -639,24 +706,61 @@ const TestDataPage: React.FC = () => {
               </div>
             )}
             {lookupResult && (
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 space-y-1">
-                <div className="font-semibold">Patient record</div>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
-                  <dt className="text-slate-500">Id</dt>
-                  <dd className="font-mono tabular-nums">{lookupResult.id}</dd>
-                  <dt className="text-slate-500">UID</dt>
-                  <dd className="font-mono text-[11px] break-all">{lookupResult.uid ?? "—"}</dd>
-                  <dt className="text-slate-500">Name</dt>
-                  <dd>
-                    {lookupResult.displayName ?? (`${lookupResult.firstName} ${lookupResult.lastName}`.trim() || "—")}
-                  </dd>
-                  <dt className="text-slate-500">Status</dt>
-                  <dd>{lookupResult.status ?? "—"}</dd>
-                  <dt className="text-slate-500">Primary email</dt>
-                  <dd>{lookupResult.primaryEmail?.email ?? "—"}</dd>
-                  <dt className="text-slate-500">Secondary email</dt>
-                  <dd>{lookupResult.secondaryEmail?.email ?? "—"}</dd>
-                </dl>
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold">Patient record (all details)</div>
+                  <div className="flex items-center gap-2">
+                    {!isEditingLookup ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        onClick={() => setIsEditingLookup(true)}
+                      >
+                        Edit
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                          onClick={() => {
+                            setLookupEditJson(JSON.stringify(lookupResult, null, 2));
+                            setIsEditingLookup(false);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingLookupMode !== "none"}
+                          className="inline-flex items-center justify-center rounded-md bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-70"
+                          onClick={() => void handleSavePatientRecord(false)}
+                        >
+                          {savingLookupMode === "save" ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingLookupMode !== "none"}
+                          className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-70"
+                          onClick={() => void handleSavePatientRecord(true)}
+                        >
+                          {savingLookupMode === "audit" ? "Saving…" : "Save with Audit"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {isEditingLookup ? (
+                  <textarea
+                    className="min-h-[340px] w-full rounded-md border border-slate-300 bg-white p-2 font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    value={lookupEditJson}
+                    onChange={(e) => setLookupEditJson(e.target.value)}
+                  />
+                ) : (
+                  <pre className="max-h-[420px] overflow-auto rounded bg-slate-900 p-2 text-[11px] text-slate-100 whitespace-pre-wrap">
+                    {JSON.stringify(lookupResult, null, 2)}
+                  </pre>
+                )}
               </div>
             )}
           </div>
