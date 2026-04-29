@@ -161,6 +161,28 @@ export interface GeneratePatientsResult {
   totalAfter: number;
 }
 
+export interface GenerateStaffOptions {
+  count?: number;
+  seed?: number;
+}
+
+export interface GenerateStaffResult {
+  requested: number;
+  inserted: number;
+  totalAfter: number;
+}
+
+export interface GenerateRecentAuditEventsOptions {
+  count?: number;
+  seed?: number;
+}
+
+export interface GenerateRecentAuditEventsResult {
+  requested: number;
+  inserted: number;
+  totalAfter: number;
+}
+
 export interface PatientsBySite {
   siteName: string;
   count: number;
@@ -169,6 +191,8 @@ export interface PatientsBySite {
 export interface PatientTestDataStats {
   patientCount: number;
   duplicatePatientCount: number;
+  recentAuditEventCount: number;
+  totalStaffCount: number;
   patientsBySite: PatientsBySite[];
 }
 
@@ -200,6 +224,38 @@ export async function getPatientTestDataStats(
   const response = await api.get<PatientTestDataStats>("/api/v1/test-data/patients/stats", {
     headers
   });
+  return response.data;
+}
+
+export async function generateTestStaff(
+  options: GenerateStaffOptions,
+  adminKey?: string
+): Promise<GenerateStaffResult> {
+  const headers: Record<string, string> = {};
+  if (adminKey) {
+    headers["X-Admin-Key"] = adminKey;
+  }
+
+  const response = await api.post<GenerateStaffResult>("/api/v1/test-data/staff/generate", options, {
+    headers
+  });
+  return response.data;
+}
+
+export async function generateRecentAuditEvents(
+  options: GenerateRecentAuditEventsOptions,
+  adminKey?: string
+): Promise<GenerateRecentAuditEventsResult> {
+  const headers: Record<string, string> = {};
+  if (adminKey) {
+    headers["X-Admin-Key"] = adminKey;
+  }
+
+  const response = await api.post<GenerateRecentAuditEventsResult>(
+    "/api/v1/test-data/audit-events/generate",
+    options,
+    { headers }
+  );
   return response.data;
 }
 

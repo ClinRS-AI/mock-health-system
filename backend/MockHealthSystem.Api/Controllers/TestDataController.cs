@@ -237,6 +237,169 @@ RESTART IDENTITY CASCADE;
     }
 
     /// <summary>
+    /// Generates synthetic staff records for testing audit features.
+    /// </summary>
+    /// <param name="request">Generation options. Default count: 10.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpPost("staff/generate")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GenerateStaffAsync(
+        [FromBody] GenerateStaffRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!IsAdminRequest())
+        {
+            return Forbid();
+        }
+
+        var count = request?.Count ?? 10;
+        if (count <= 0)
+        {
+            return BadRequest("Count must be greater than zero.");
+        }
+
+        var seed = request?.Seed;
+        var rng = seed.HasValue ? new Random(seed.Value) : new Random();
+
+        var firstNames = new[]
+        {
+            "Alex", "Jamie", "Taylor", "Jordan", "Morgan", "Casey", "Riley", "Avery", "Cameron", "Devin",
+            "Sam", "Quinn", "Skyler", "Parker", "Drew", "Elliot", "Harper", "Rowan", "Charlie", "Blake"
+        };
+        var lastNames = new[]
+        {
+            "Morgan", "Taylor", "Parker", "Campbell", "Nguyen", "Patel", "Kim", "Lopez", "Reed", "Carter",
+            "Diaz", "Brooks", "Ward", "Foster", "Bennett", "Hayes", "Coleman", "Murphy", "Ross", "Price"
+        };
+
+        var created = new List<Staff>(count);
+        for (var i = 0; i < count; i++)
+        {
+            created.Add(new Staff
+            {
+                StaffUid = Guid.NewGuid(),
+                FirstName = firstNames[rng.Next(firstNames.Length)],
+                LastName = lastNames[rng.Next(lastNames.Length)],
+                IsActive = true
+            });
+        }
+
+        await _db.Staff.AddRangeAsync(created, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Ok(new GenerateStaffResponse
+        {
+            Requested = count,
+            Inserted = created.Count,
+            TotalAfter = await _db.Staff.CountAsync(cancellationToken)
+        });
+    }
+
+    /// <summary>
+    /// Generates recent audit events (within the last 5 minutes) for existing staff and patients.
+    /// </summary>
+    /// <param name="request">Generation options. Default count: 25.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpPost("audit-events/generate")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GenerateRecentAuditEventsAsync(
+        [FromBody] GenerateRecentAuditEventsRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!IsAdminRequest())
+        {
+            return Forbid();
+        }
+
+        var count = request?.Count ?? 25;
+        if (count <= 0)
+        {
+            return BadRequest("Count must be greater than zero.");
+        }
+
+        var staffRows = await _db.Staff
+            .AsNoTracking()
+            .Where(s => s.IsActive)
+            .ToListAsync(cancellationToken);
+        if (staffRows.Count == 0)
+        {
+            return BadRequest("No active staff found. Generate staff first.");
+        }
+
+        var auditTypes = await _db.AuditEntryTypes
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+        if (auditTypes.Count == 0)
+        {
+            return BadRequest("No audit entry types found.");
+        }
+
+        var patientIds = await _db.Patients
+            .AsNoTracking()
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        var patientAuditTypes = auditTypes
+            .Where(IsPatientReferencedAuditType)
+            .ToList();
+        var nonPatientAuditTypes = auditTypes
+            .Where(a => !IsPatientReferencedAuditType(a))
+            .ToList();
+
+        if (patientIds.Count == 0 && nonPatientAuditTypes.Count == 0)
+        {
+            return BadRequest("No patients found for patient-referencing audit entry types.");
+        }
+
+        var seed = request?.Seed;
+        var rng = seed.HasValue ? new Random(seed.Value) : new Random();
+        var now = DateTime.UtcNow;
+
+        var events = new List<AuditLog>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var staff = staffRows[rng.Next(staffRows.Count)];
+            var type = auditTypes[rng.Next(auditTypes.Count)];
+            var needsPatient = IsPatientReferencedAuditType(type);
+
+            if (needsPatient && patientIds.Count == 0)
+            {
+                type = nonPatientAuditTypes[rng.Next(nonPatientAuditTypes.Count)];
+                needsPatient = false;
+            }
+
+            var createdByUser = $"{staff.FirstName}.{staff.LastName}".ToLowerInvariant();
+            var eventTime = now.AddSeconds(-rng.Next(0, 301));
+
+            events.Add(new AuditLog
+            {
+                StaffPKey = staff.Id,
+                PatientPKey = needsPatient ? patientIds[rng.Next(patientIds.Count)] : null,
+                StudyPKey = $"STUDY-{rng.Next(100, 999)}",
+                CreatedTimeUtc = eventTime,
+                CreatedByUser = createdByUser,
+                AuditEntryTypeId = type.Id,
+                Details = $"Generated audit event for {type.DisplayName}.",
+                SourceSystem = "MockHealthSystem"
+            });
+        }
+
+        await _db.AuditLogs.AddRangeAsync(events, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Ok(new GenerateRecentAuditEventsResponse
+        {
+            Requested = count,
+            Inserted = events.Count,
+            TotalAfter = await _db.AuditLogs.CountAsync(cancellationToken)
+        });
+    }
+
+    /// <summary>
     /// Adds a single test patient with minimal fields (FirstName, LastName, Email). Id and Uid are auto-generated.
     /// </summary>
     /// <param name="request">FirstName, LastName, and Email (primary email address).</param>
@@ -369,6 +532,13 @@ RESTART IDENTITY CASCADE;
             .CountAsync(
                 p => p.StatusReason == "GeneratedDuplicate" || p.StatusReason == "BaselineDuplicate",
                 cancellationToken);
+        var fiveMinutesAgoUtc = DateTime.UtcNow.AddMinutes(-5);
+        var recentAuditEventCount = await _db.AuditLogs
+            .AsNoTracking()
+            .CountAsync(a => a.CreatedTimeUtc >= fiveMinutesAgoUtc, cancellationToken);
+        var totalStaffCount = await _db.Staff
+            .AsNoTracking()
+            .CountAsync(cancellationToken);
 
         // Group by site name (or "Unassigned" when PrimarySiteId is null).
         var bySite = await _db.Patients
@@ -392,6 +562,8 @@ RESTART IDENTITY CASCADE;
         {
             PatientCount = totalCount,
             DuplicatePatientCount = duplicateCount,
+            RecentAuditEventCount = recentAuditEventCount,
+            TotalStaffCount = totalStaffCount,
             PatientsBySite = bySite
         };
 
@@ -526,6 +698,11 @@ RESTART IDENTITY CASCADE;
         return $"{local}{suffix}@{domain}";
     }
 
+    private static bool IsPatientReferencedAuditType(AuditEntryType auditEntryType)
+    {
+        return auditEntryType.Code.Contains("PATIENT", StringComparison.OrdinalIgnoreCase);
+    }
+
     private bool IsAdminRequest()
     {
         // Always allow in Development for convenience, even if an admin key is configured.
@@ -571,6 +748,32 @@ RESTART IDENTITY CASCADE;
         public Guid Uid { get; set; }
     }
 
+    public sealed class GenerateStaffRequest
+    {
+        public int? Count { get; set; }
+        public int? Seed { get; set; }
+    }
+
+    public sealed class GenerateStaffResponse
+    {
+        public int Requested { get; set; }
+        public int Inserted { get; set; }
+        public int TotalAfter { get; set; }
+    }
+
+    public sealed class GenerateRecentAuditEventsRequest
+    {
+        public int? Count { get; set; }
+        public int? Seed { get; set; }
+    }
+
+    public sealed class GenerateRecentAuditEventsResponse
+    {
+        public int Requested { get; set; }
+        public int Inserted { get; set; }
+        public int TotalAfter { get; set; }
+    }
+
     public sealed class PatientsBySiteDto
     {
         public string SiteName { get; set; } = string.Empty;
@@ -581,6 +784,8 @@ RESTART IDENTITY CASCADE;
     {
         public int PatientCount { get; set; }
         public int DuplicatePatientCount { get; set; }
+        public int RecentAuditEventCount { get; set; }
+        public int TotalStaffCount { get; set; }
         public IReadOnlyList<PatientsBySiteDto> PatientsBySite { get; set; } = Array.Empty<PatientsBySiteDto>();
     }
 }

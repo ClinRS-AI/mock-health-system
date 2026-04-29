@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from "react";
 import {
   generateTestPatients,
+  generateTestStaff,
+  generateRecentAuditEvents,
   resetTestPatients,
   addTestPatient,
   lookupTestPatient,
   type GeneratePatientsOptions,
   type GeneratePatientsResult,
+  type GenerateStaffOptions,
+  type GenerateStaffResult,
+  type GenerateRecentAuditEventsOptions,
+  type GenerateRecentAuditEventsResult,
   type AddTestPatientResponse,
   type LookupPatientResponse,
   getPatientTestDataStats,
@@ -21,11 +27,23 @@ const TestDataPage: React.FC = () => {
   });
 
   const [generateResult, setGenerateResult] = useState<GeneratePatientsResult | null>(null);
+  const [staffGenerateOptions, setStaffGenerateOptions] = useState<GenerateStaffOptions>({
+    count: 10
+  });
+  const [staffGenerateResult, setStaffGenerateResult] = useState<GenerateStaffResult | null>(null);
+  const [auditEventsGenerateOptions, setAuditEventsGenerateOptions] =
+    useState<GenerateRecentAuditEventsOptions>({
+      count: 25
+    });
+  const [auditEventsGenerateResult, setAuditEventsGenerateResult] =
+    useState<GenerateRecentAuditEventsResult | null>(null);
 
   const [stats, setStats] = useState<PatientTestDataStats | null>(null);
 
   const [loadingReset, setLoadingReset] = useState(false);
   const [loadingGenerate, setLoadingGenerate] = useState(false);
+  const [loadingGenerateStaff, setLoadingGenerateStaff] = useState(false);
+  const [loadingGenerateAuditEvents, setLoadingGenerateAuditEvents] = useState(false);
   const [loadingAdd, setLoadingAdd] = useState(false);
   const [addResult, setAddResult] = useState<AddTestPatientResponse | null>(null);
   const [addForm, setAddForm] = useState({ firstName: "", lastName: "", email: "" });
@@ -81,6 +99,40 @@ const TestDataPage: React.FC = () => {
       setGenerateResult(null);
     } finally {
       setLoadingGenerate(false);
+    }
+  }
+
+  async function handleGenerateStaff() {
+    try {
+      setLoadingGenerateStaff(true);
+      setError(null);
+
+      const result = await generateTestStaff(staffGenerateOptions, adminKey || undefined);
+      setStaffGenerateResult(result);
+      await loadStats(adminKey);
+    } catch (err) {
+      console.error(err);
+      setError("Unable to generate staff. Check the admin key and backend.");
+      setStaffGenerateResult(null);
+    } finally {
+      setLoadingGenerateStaff(false);
+    }
+  }
+
+  async function handleGenerateRecentAuditEvents() {
+    try {
+      setLoadingGenerateAuditEvents(true);
+      setError(null);
+
+      const result = await generateRecentAuditEvents(auditEventsGenerateOptions, adminKey || undefined);
+      setAuditEventsGenerateResult(result);
+      await loadStats(adminKey);
+    } catch (err) {
+      console.error(err);
+      setError("Unable to generate recent audit events. Ensure staff (and patients if needed) exist.");
+      setAuditEventsGenerateResult(null);
+    } finally {
+      setLoadingGenerateAuditEvents(false);
     }
   }
 
@@ -174,11 +226,18 @@ const TestDataPage: React.FC = () => {
               void loadStats(value);
             }}
           />
+          <button
+            type="button"
+            onClick={() => void loadStats(adminKey)}
+            className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Refresh
+          </button>
         </div>
       </section>
 
       {stats && (
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-4">
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <p className="text-xs font-medium text-slate-500">Patient count</p>
             <p className="mt-1 text-xl font-semibold text-slate-800 tabular-nums">
@@ -189,6 +248,12 @@ const TestDataPage: React.FC = () => {
             <p className="text-xs font-medium text-slate-500">Duplicate patients</p>
             <p className="mt-1 text-xl font-semibold text-slate-800 tabular-nums">
               {stats.duplicatePatientCount}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-xs font-medium text-slate-500">Recent audit events (last 5 min)</p>
+            <p className="mt-1 text-xl font-semibold text-slate-800 tabular-nums">
+              {stats.recentAuditEventCount}
             </p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -205,6 +270,12 @@ const TestDataPage: React.FC = () => {
             ) : (
               <p className="text-xs text-slate-400">No patients yet.</p>
             )}
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-xs font-medium text-slate-500">Total staff</p>
+            <p className="mt-1 text-xl font-semibold text-slate-800 tabular-nums">
+              {stats.totalStaffCount}
+            </p>
           </div>
         </section>
       )}
@@ -318,6 +389,125 @@ const TestDataPage: React.FC = () => {
               <div>
                 Total after generation:{" "}
                 <span className="font-semibold tabular-nums">{generateResult.totalAfter}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-slate-800">Generate staff</h3>
+          <p className="text-xs text-slate-500">
+            Create synthetic staff records used by audit events and reporting.
+          </p>
+          <div className="space-y-2 text-xs text-slate-700">
+            <label className="block">
+              <span className="block mb-1">Staff count</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                value={staffGenerateOptions.count ?? ""}
+                onChange={(e) =>
+                  setStaffGenerateOptions((prev) => ({
+                    ...prev,
+                    count: e.target.value === "" ? undefined : Number(e.target.value)
+                  }))
+                }
+              />
+            </label>
+            <label className="block">
+              <span className="block mb-1">Seed (optional)</span>
+              <input
+                type="number"
+                className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                value={staffGenerateOptions.seed ?? ""}
+                onChange={(e) =>
+                  setStaffGenerateOptions((prev) => ({
+                    ...prev,
+                    seed: e.target.value === "" ? undefined : Number(e.target.value)
+                  }))
+                }
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleGenerateStaff()}
+            disabled={loadingGenerateStaff}
+            className="inline-flex items-center justify-center rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+          >
+            {loadingGenerateStaff ? "Generating…" : "Generate staff"}
+          </button>
+          {staffGenerateResult && (
+            <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 space-y-1">
+              <div>
+                Staff inserted:{" "}
+                <span className="font-semibold tabular-nums">{staffGenerateResult.inserted}</span>
+              </div>
+              <div>
+                Total staff:{" "}
+                <span className="font-semibold tabular-nums">{staffGenerateResult.totalAfter}</span>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-slate-800">Generate recent audit events</h3>
+          <p className="text-xs text-slate-500">
+            Create audit events with timestamps randomized within the last 5 minutes.
+          </p>
+          <div className="space-y-2 text-xs text-slate-700">
+            <label className="block">
+              <span className="block mb-1">Audit event count</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                value={auditEventsGenerateOptions.count ?? ""}
+                onChange={(e) =>
+                  setAuditEventsGenerateOptions((prev) => ({
+                    ...prev,
+                    count: e.target.value === "" ? undefined : Number(e.target.value)
+                  }))
+                }
+              />
+            </label>
+            <label className="block">
+              <span className="block mb-1">Seed (optional)</span>
+              <input
+                type="number"
+                className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                value={auditEventsGenerateOptions.seed ?? ""}
+                onChange={(e) =>
+                  setAuditEventsGenerateOptions((prev) => ({
+                    ...prev,
+                    seed: e.target.value === "" ? undefined : Number(e.target.value)
+                  }))
+                }
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleGenerateRecentAuditEvents()}
+            disabled={loadingGenerateAuditEvents}
+            className="inline-flex items-center justify-center rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+          >
+            {loadingGenerateAuditEvents ? "Generating…" : "Generate recent audit events"}
+          </button>
+          {auditEventsGenerateResult && (
+            <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 space-y-1">
+              <div>
+                Audit events inserted:{" "}
+                <span className="font-semibold tabular-nums">{auditEventsGenerateResult.inserted}</span>
+              </div>
+              <div>
+                Total audit events:{" "}
+                <span className="font-semibold tabular-nums">
+                  {auditEventsGenerateResult.totalAfter}
+                </span>
               </div>
             </div>
           )}
