@@ -7,6 +7,7 @@ using Xunit;
 
 namespace MockHealthSystem.Tests.Integration;
 
+[Collection("EnvironmentMutating")]
 public sealed class TestDataManagementEndpointTests : IClassFixture<MockHealthSystemWebApplicationFactory>
 {
     private readonly MockHealthSystemWebApplicationFactory _factory;
@@ -73,7 +74,11 @@ public sealed class TestDataManagementEndpointTests : IClassFixture<MockHealthSy
             Assert.InRange(log.CreatedTimeUtc, fiveMinutesAgo, now.AddSeconds(1));
 
             var type = auditTypesById[log.AuditEntryTypeId];
-            if (type.Code.Contains("PATIENT", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(type.Code, "PATIENT_DELETED", StringComparison.OrdinalIgnoreCase))
+            {
+                Assert.Null(log.PatientPKey);
+            }
+            else if (type.Code.Contains("PATIENT", StringComparison.OrdinalIgnoreCase))
             {
                 Assert.NotNull(log.PatientPKey);
             }
@@ -93,6 +98,40 @@ public sealed class TestDataManagementEndpointTests : IClassFixture<MockHealthSy
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task TestDataEndpoints_Return403_WhenAdminKeyMissingOrWrong_IfConfigured()
+    {
+        using var _ = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
+        var client = _factory.CreateClient();
+
+        var missingResp = await client.PostAsJsonAsync("/api/v1/test-data/staff/generate", new { count = 1 });
+        Assert.Equal(HttpStatusCode.Forbidden, missingResp.StatusCode);
+
+        using var wrongRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/test-data/staff/generate")
+        {
+            Content = JsonContent.Create(new { count = 1 })
+        };
+        wrongRequest.Headers.Add("X-Admin-Key", "wrong-key");
+        var wrongResp = await client.SendAsync(wrongRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, wrongResp.StatusCode);
+    }
+
+    [Fact]
+    public async Task TestDataEndpoints_Return200_WhenAdminKeyCorrect_IfConfigured()
+    {
+        using var _ = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
+        var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/test-data/staff/generate")
+        {
+            Content = JsonContent.Create(new { count = 1, seed = 101 })
+        };
+        request.Headers.Add("X-Admin-Key", "test-admin-key");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private async Task ResetAuditAndStaffTablesAsync()

@@ -58,10 +58,28 @@ builder.Services.AddApiVersioning(options =>
 
 if (builder.Environment.IsEnvironment("Testing"))
 {
-    builder.Services.AddDbContext<AppDbContext>(options =>
+    var useSqliteForTests = builder.Configuration.GetValue<bool>("Testing:UseSqlite");
+    if (useSqliteForTests)
     {
-        options.UseInMemoryDatabase("MockHealthSystemTests");
-    });
+        var sqliteConnectionString = builder.Configuration["Testing:SqliteConnectionString"];
+        if (string.IsNullOrWhiteSpace(sqliteConnectionString))
+        {
+            throw new InvalidOperationException("Testing:SqliteConnectionString is required when Testing:UseSqlite is enabled.");
+        }
+
+        builder.Services.AddDbContext<AppDbContext>(options =>
+        {
+            options.UseSqlite(sqliteConnectionString);
+        });
+    }
+    else
+    {
+        var testDatabaseName = builder.Configuration["Testing:InMemoryDatabaseName"] ?? "MockHealthSystemTests";
+        builder.Services.AddDbContext<AppDbContext>(options =>
+        {
+            options.UseInMemoryDatabase(testDatabaseName);
+        });
+    }
 }
 else
 {

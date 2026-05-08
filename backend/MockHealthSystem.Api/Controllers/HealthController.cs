@@ -6,6 +6,7 @@ namespace MockHealthSystem.Api.Controllers;
 
 /// <summary>
 /// Health and readiness checks for the API.
+/// Marked anonymous so load balancers and the admin UI can probe liveness when auth mode is Bearer, CCAPIKey, or OAuth — the global fallback authorization policy otherwise requires credentials on every route.
 /// </summary>
 [ApiController]
 [ApiVersion("1.0")]

@@ -35,7 +35,7 @@ function App() {
             Mock Health System
           </h1>
           <p className="text-sm text-slate-500">
-            React + Vite + Tailwind frontend wired to a .NET API and Postgres-ready backend.
+            Fake health system for development and testing. Mocks API endpoints for CC CTMS based off the public API documentation.
           </p>
         </header>
 

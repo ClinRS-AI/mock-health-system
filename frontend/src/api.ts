@@ -177,10 +177,18 @@ export interface GenerateRecentAuditEventsOptions {
   seed?: number;
 }
 
+export interface AuditTypeInsertCount {
+  code: string;
+  displayName: string;
+  count: number;
+}
+
 export interface GenerateRecentAuditEventsResult {
   requested: number;
   inserted: number;
   totalAfter: number;
+  /** Present when backend supports breakdown (new API). */
+  insertedByAuditType?: AuditTypeInsertCount[];
 }
 
 export interface PatientsBySite {

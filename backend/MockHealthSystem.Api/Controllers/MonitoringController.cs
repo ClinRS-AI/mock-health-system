@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MockHealthSystem.Api.Monitoring;
 using MockHealthSystem.Api.Models.Monitoring;
 using MockHealthSystem.Infrastructure.Data;
 
@@ -45,7 +46,7 @@ public sealed class MonitoringController : ControllerBase
             return Forbid();
         }
 
-        var limit = take is null or <= 0 ? 100 : Math.Min(take.Value, 500);
+        var limit = MonitoringRequestListLimits.ClampTake(take);
 
         var query = _db.ApiRequestLogs.AsNoTracking();
 

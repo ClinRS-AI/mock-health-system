@@ -140,7 +140,7 @@ public sealed class PatientsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(criteria.City)) query = query.Where(p => p.City != null && p.City.StartsWith(criteria.City));
         if (!string.IsNullOrWhiteSpace(criteria.Status)) query = query.Where(p => p.Status == criteria.Status);
         var skip = Math.Max(0, criteria.Skip ?? 0);
-        var limit = criteria.Limit switch { null => 100, <= 0 => 100, > 5000 => 5000, var n => n.Value };
+        var limit = PatientSearchLimits.ClampLimit(criteria.Limit);
         var list = await query.OrderBy(p => p.Id).Skip(skip).Take(limit).ToListAsync(cancellationToken);
         return Ok(list.Select(PatientMappingService.ToViewModel));
     }

@@ -83,6 +83,27 @@ backend/scripts/run-ef.sh migrations add YourMigrationName
 
 To see if a proxy is set: `echo $HTTP_PROXY $HTTPS_PROXY`. To clear it for the whole terminal session: `unset HTTP_PROXY HTTPS_PROXY`.
 
+### Full-solution test coverage (Coverlet + ReportGenerator)
+
+Run full backend solution tests with Cobertura coverage collection and HTML/text reports:
+
+```bash
+backend/scripts/run-full-coverage.sh
+```
+
+The script runs:
+
+- `dotnet test --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/MockHealthSystem.Infrastructure/Migrations/*.cs"`
+- `reportgenerator -reports:"./TestResultsFullCoverage/**/coverage.cobertura.xml" -targetdir:"./TestResultsFullCoverage/report-html" -reporttypes:"Html;TextSummary"`
+
+Coverage excludes EF Core migration source files (`MockHealthSystem.Infrastructure.Migrations.*`) so line and branch metrics focus on application/runtime code.
+
+Coverage artifacts are written to:
+
+- Cobertura XML files: `./TestResultsFullCoverage/**/coverage.cobertura.xml`
+- HTML report entry point: `./TestResultsFullCoverage/report-html/index.html`
+- Text summary: `./TestResultsFullCoverage/report-html/Summary.txt`
+
 ### Known vulnerabilities (frontend)
 
 Running `npm audit` in `frontend/` may report **moderate** vulnerabilities in the **ajv** dependency (used by ESLint). These come from ESLint’s own dependencies; there is no patched release that fixes them without breaking the current ESLint setup. The template uses an **override** in `frontend/package.json` to fix **minimatch** (high severity); the remaining ajv advisories are accepted as known, low-risk (ReDoS in dev-only tooling). You can run `npm audit` in `frontend/` for details and re-evaluate as dependencies are updated.

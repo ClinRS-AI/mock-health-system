@@ -1,10 +1,16 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using MockHealthSystem.Api.Services;
+using MockHealthSystem.Infrastructure.Data;
+using MockHealthSystem.Infrastructure.Data.Entities;
 using Xunit;
 
 namespace MockHealthSystem.Tests.Integration;
 
+[Collection("EnvironmentMutating")]
 public sealed class MonitoringEndpointTests : IClassFixture<MockHealthSystemWebApplicationFactory>
 {
     private readonly MockHealthSystemWebApplicationFactory _factory;
@@ -30,6 +36,7 @@ public sealed class MonitoringEndpointTests : IClassFixture<MockHealthSystemWebA
     [Fact]
     public async Task ExternalRequest_IsLogged_AndVisibleInMonitoringList()
     {
+        await ConfigureAuthModeNoneAsync();
         var client = _factory.CreateClient();
 
         // Trigger a simple health request (no Origin header) which should be logged.
@@ -51,6 +58,7 @@ public sealed class MonitoringEndpointTests : IClassFixture<MockHealthSystemWebA
     [Fact]
     public async Task UiOriginRequest_IsNotLogged()
     {
+        await ConfigureAuthModeNoneAsync();
         var client = _factory.CreateClient();
 
         // Capture current list size.
@@ -79,6 +87,56 @@ public sealed class MonitoringEndpointTests : IClassFixture<MockHealthSystemWebA
             x.Origin != null &&
             x.Origin.Contains("http://localhost:5176", StringComparison.OrdinalIgnoreCase) &&
             x.Path.Contains("/api/v1/health", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task MonitoringEndpoints_Return403_WhenAdminKeyMissingOrWrong_IfConfigured()
+    {
+        using var _ = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
+        var client = _factory.CreateClient();
+
+        var missingResp = await client.GetAsync("/api/v1/monitoring/requests");
+        Assert.Equal(HttpStatusCode.Forbidden, missingResp.StatusCode);
+
+        using var wrongRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/monitoring/stats");
+        wrongRequest.Headers.Add("X-Admin-Key", "wrong-key");
+        var wrongResp = await client.SendAsync(wrongRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, wrongResp.StatusCode);
+    }
+
+    [Fact]
+    public async Task MonitoringEndpoints_Return200_WhenAdminKeyCorrect_IfConfigured()
+    {
+        using var _ = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
+        var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/monitoring/requests");
+        request.Headers.Add("X-Admin-Key", "test-admin-key");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    private async Task ConfigureAuthModeNoneAsync()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var settings = await db.AuthSettings.FirstOrDefaultAsync();
+        if (settings is null)
+        {
+            settings = new AuthSettings
+            {
+                Id = 1
+            };
+            db.AuthSettings.Add(settings);
+        }
+
+        settings.Mode = "None";
+        settings.BearerToken = null;
+        await db.SaveChangesAsync();
+
+        var authSettingsService = scope.ServiceProvider.GetRequiredService<IAuthSettingsService>();
+        await authSettingsService.InvalidateCacheAsync();
     }
 }
 

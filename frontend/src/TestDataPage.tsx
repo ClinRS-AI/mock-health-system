@@ -557,11 +557,26 @@ const TestDataPage: React.FC = () => {
             {loadingGenerateAuditEvents ? "Generating…" : "Generate recent audit events"}
           </button>
           {auditEventsGenerateResult && (
-            <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 space-y-1">
+            <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 space-y-2">
               <div>
                 Audit events inserted:{" "}
                 <span className="font-semibold tabular-nums">{auditEventsGenerateResult.inserted}</span>
               </div>
+              {(auditEventsGenerateResult.insertedByAuditType ?? []).length > 0 && (
+                <div>
+                  <div className="font-medium text-emerald-900 mb-1">By audit type</div>
+                  <ul className="space-y-0.5 max-h-40 overflow-auto border border-emerald-100 rounded bg-white/60 px-2 py-1">
+                    {(auditEventsGenerateResult.insertedByAuditType ?? []).map((row) => (
+                      <li key={row.code} className="flex justify-between gap-3">
+                        <span className="truncate font-mono text-[11px]" title={row.displayName}>
+                          {row.code}
+                        </span>
+                        <span className="font-semibold tabular-nums shrink-0">{row.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div>
                 Total audit events:{" "}
                 <span className="font-semibold tabular-nums">

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MockHealthSystem.Api.Services;
 using MockHealthSystem.Infrastructure.Data;
 using MockHealthSystem.Infrastructure.Data.Entities;
 using Xunit;
@@ -23,7 +24,7 @@ public sealed class AuthenticationModeTests : IClassFixture<MockHealthSystemWebA
         await ConfigureAuthSettingsAsync("CCAPIKey", bearerToken: "shared-secret");
 
         var client = _factory.CreateClient();
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/health");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/verify");
         request.Headers.Add("CCAPIKey", "shared-secret");
 
         var response = await client.SendAsync(request);
@@ -38,13 +39,13 @@ public sealed class AuthenticationModeTests : IClassFixture<MockHealthSystemWebA
 
         var client = _factory.CreateClient();
 
-        var missingHeaderResponse = await client.GetAsync("/api/v1/health");
-        Assert.Equal(HttpStatusCode.Unauthorized, missingHeaderResponse.StatusCode);
+        var missingHeaderResponse = await client.GetAsync("/api/v1/auth/verify");
+        await ApiErrorAssertions.AssertApiErrorAsync(missingHeaderResponse, HttpStatusCode.Unauthorized);
 
-        using var invalidRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/health");
+        using var invalidRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/verify");
         invalidRequest.Headers.Add("CCAPIKey", "wrong-secret");
         var invalidHeaderResponse = await client.SendAsync(invalidRequest);
-        Assert.Equal(HttpStatusCode.Unauthorized, invalidHeaderResponse.StatusCode);
+        await ApiErrorAssertions.AssertApiErrorAsync(invalidHeaderResponse, HttpStatusCode.Unauthorized);
     }
 
     [Fact]
@@ -54,12 +55,12 @@ public sealed class AuthenticationModeTests : IClassFixture<MockHealthSystemWebA
 
         var client = _factory.CreateClient();
 
-        using var noAuthRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/health");
+        using var noAuthRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/verify");
         noAuthRequest.Headers.Add("CCAPIKey", "bearer-secret");
         var noAuthResponse = await client.SendAsync(noAuthRequest);
-        Assert.Equal(HttpStatusCode.Unauthorized, noAuthResponse.StatusCode);
+        await ApiErrorAssertions.AssertApiErrorAsync(noAuthResponse, HttpStatusCode.Unauthorized);
 
-        using var authRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/health");
+        using var authRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/verify");
         authRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "bearer-secret");
         var authResponse = await client.SendAsync(authRequest);
         Assert.Equal(HttpStatusCode.OK, authResponse.StatusCode);
@@ -73,12 +74,12 @@ public sealed class AuthenticationModeTests : IClassFixture<MockHealthSystemWebA
 
         var client = _factory.CreateClient();
 
-        using var missingAuthRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/health");
+        using var missingAuthRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/verify");
         missingAuthRequest.Headers.Add("CCAPIKey", "oauth-access-token");
         var missingAuthResponse = await client.SendAsync(missingAuthRequest);
-        Assert.Equal(HttpStatusCode.Unauthorized, missingAuthResponse.StatusCode);
+        await ApiErrorAssertions.AssertApiErrorAsync(missingAuthResponse, HttpStatusCode.Unauthorized);
 
-        using var authRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/health");
+        using var authRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/verify");
         authRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "oauth-access-token");
         var authResponse = await client.SendAsync(authRequest);
         Assert.Equal(HttpStatusCode.OK, authResponse.StatusCode);
@@ -104,6 +105,9 @@ public sealed class AuthenticationModeTests : IClassFixture<MockHealthSystemWebA
         settings.BearerToken = bearerToken;
 
         await db.SaveChangesAsync();
+
+        var authSettingsService = scope.ServiceProvider.GetRequiredService<IAuthSettingsService>();
+        await authSettingsService.InvalidateCacheAsync();
     }
 
     private async Task SeedAccessTokenAsync(string token, string clientId, string subject, DateTime expiresAtUtc)

@@ -8,6 +8,7 @@ using Xunit;
 
 namespace MockHealthSystem.Tests.Integration;
 
+[Collection("EnvironmentMutating")]
 public sealed class SoapReportEndpointTests : IClassFixture<MockHealthSystemWebApplicationFactory>
 {
     private readonly MockHealthSystemWebApplicationFactory _factory;
@@ -34,7 +35,7 @@ public sealed class SoapReportEndpointTests : IClassFixture<MockHealthSystemWebA
     [Fact]
     public async Task RunReport_Succeeds_WithValidPasswordAndPkey()
     {
-        Environment.SetEnvironmentVariable("SOAP_REPORT_PASSWORD", "soap-secret");
+        using var _ = new EnvironmentVariableScope("SOAP_REPORT_PASSWORD", "soap-secret");
         await SeedReportDefinitionAsync("PATIENTS_ONE", "SELECT 1 AS \"One\", 'ok' AS \"Message\"");
 
         var client = _factory.CreateClient();
@@ -52,7 +53,7 @@ public sealed class SoapReportEndpointTests : IClassFixture<MockHealthSystemWebA
     [Fact]
     public async Task RunReport_Fails_WhenPasswordIsInvalid()
     {
-        Environment.SetEnvironmentVariable("SOAP_REPORT_PASSWORD", "soap-secret");
+        using var _ = new EnvironmentVariableScope("SOAP_REPORT_PASSWORD", "soap-secret");
         await SeedReportDefinitionAsync("PATIENTS_ONE", "SELECT 1 AS \"One\"");
 
         var client = _factory.CreateClient();
@@ -67,7 +68,7 @@ public sealed class SoapReportEndpointTests : IClassFixture<MockHealthSystemWebA
     [Fact]
     public async Task RunReport_Fails_WhenPkeyIsUnknown()
     {
-        Environment.SetEnvironmentVariable("SOAP_REPORT_PASSWORD", "soap-secret");
+        using var _ = new EnvironmentVariableScope("SOAP_REPORT_PASSWORD", "soap-secret");
         await SeedReportDefinitionAsync("KNOWN_REPORT", "SELECT 1 AS \"One\"");
 
         var client = _factory.CreateClient();
@@ -82,7 +83,7 @@ public sealed class SoapReportEndpointTests : IClassFixture<MockHealthSystemWebA
     [Fact]
     public async Task RunReport_Fails_WhenQueryIsNotSelect()
     {
-        Environment.SetEnvironmentVariable("SOAP_REPORT_PASSWORD", "soap-secret");
+        using var _ = new EnvironmentVariableScope("SOAP_REPORT_PASSWORD", "soap-secret");
         await SeedReportDefinitionAsync("INVALID_SQL", "UPDATE \"Patients\" SET \"Status\" = 'Inactive'");
 
         var client = _factory.CreateClient();
@@ -98,7 +99,7 @@ public sealed class SoapReportEndpointTests : IClassFixture<MockHealthSystemWebA
     [Fact]
     public async Task RunReport_AuditRecent_ReturnsExpectedAuditColumnsAndValues()
     {
-        Environment.SetEnvironmentVariable("SOAP_REPORT_PASSWORD", "soap-secret");
+        using var _ = new EnvironmentVariableScope("SOAP_REPORT_PASSWORD", "soap-secret");
         await SeedAuditReportDataAsync();
 
         var client = _factory.CreateClient();

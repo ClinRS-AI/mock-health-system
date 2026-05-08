@@ -30,4 +30,5 @@ backend/**/obj*
 # Coverage / test outputs
 coverage/
 TestResults/
+TestResultsFullCoverage/
 

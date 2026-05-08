@@ -1,4 +1,5 @@
 using MockHealthSystem.Api.Models;
+using System.Text.Json;
 using Xunit;
 
 namespace MockHealthSystem.Tests.Models;
@@ -6,7 +7,7 @@ namespace MockHealthSystem.Tests.Models;
 public sealed class ApiErrorResponseTests
 {
     [Fact]
-    public void ApiErrorResponse_Properties_ReflectConstructorValues()
+    public void ApiErrorResponse_SerializesExpectedFields()
     {
         var response = new ApiErrorResponse
         {
@@ -16,14 +17,16 @@ public sealed class ApiErrorResponseTests
             TraceId = "trace-123"
         };
 
-        Assert.Equal(400, response.Status);
-        Assert.Equal("Bad Request", response.Title);
-        Assert.Equal("Invalid input", response.Detail);
-        Assert.Equal("trace-123", response.TraceId);
+        var json = JsonSerializer.Serialize(response);
+
+        Assert.Contains("\"Status\":400", json, StringComparison.Ordinal);
+        Assert.Contains("\"Title\":\"Bad Request\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"Detail\":\"Invalid input\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"TraceId\":\"trace-123\"", json, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ApiErrorResponse_OptionalDetail_CanBeNull()
+    public void ApiErrorResponse_RoundTripsWithNullOptionalFields()
     {
         var response = new ApiErrorResponse
         {
@@ -33,7 +36,13 @@ public sealed class ApiErrorResponseTests
             TraceId = null
         };
 
-        Assert.Null(response.Detail);
-        Assert.Null(response.TraceId);
+        var json = JsonSerializer.Serialize(response);
+        var deserialized = JsonSerializer.Deserialize<ApiErrorResponse>(json);
+
+        Assert.NotNull(deserialized);
+        Assert.Equal(500, deserialized!.Status);
+        Assert.Equal("Error", deserialized.Title);
+        Assert.Null(deserialized.Detail);
+        Assert.Null(deserialized.TraceId);
     }
 }

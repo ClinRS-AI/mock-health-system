@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using MockHealthSystem.Infrastructure.Data;
 
@@ -13,6 +11,8 @@ namespace MockHealthSystem.Tests.Integration;
 /// </summary>
 public sealed class MockHealthSystemWebApplicationFactory : WebApplicationFactory<Program>
 {
+    private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"mock-health-tests-{Guid.NewGuid():N}.db");
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -23,7 +23,10 @@ public sealed class MockHealthSystemWebApplicationFactory : WebApplicationFactor
                 ["Jwt:Key"] = "integration-test-key-min-32-characters-long",
                 ["Jwt:Issuer"] = "MockHealthSystem.Api",
                 ["Jwt:Audience"] = "MockHealthSystem.App",
-                ["FRONTEND_URL"] = "http://localhost:5176"
+                ["FRONTEND_URL"] = "http://localhost:5176",
+                ["Testing:InMemoryDatabaseName"] = $"MockHealthSystemTests_{Guid.NewGuid():N}",
+                ["Testing:UseSqlite"] = "true",
+                ["Testing:SqliteConnectionString"] = $"Data Source={_dbPath}"
             });
         });
 
@@ -49,5 +52,25 @@ public sealed class MockHealthSystemWebApplicationFactory : WebApplicationFactor
                 db.SaveChanges();
             }
         });
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            try
+            {
+                if (File.Exists(_dbPath))
+                {
+                    File.Delete(_dbPath);
+                }
+            }
+            catch
+            {
+                // Best-effort cleanup only.
+            }
+        }
+
+        base.Dispose(disposing);
     }
 }

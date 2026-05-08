@@ -19,7 +19,7 @@ describe("App", () => {
     render(<App />);
 
     expect(
-      screen.getByRole("heading", { name: /baseline .net \+ react app/i })
+      screen.getByRole("heading", { name: /mock health system/i })
     ).toBeInTheDocument();
     expect(screen.getByText(/stack overview/i)).toBeInTheDocument();
     expect(
