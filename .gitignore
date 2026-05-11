@@ -16,16 +16,17 @@ dist/
 .idea/
 *.swp
 
-# .NET / backend (build output; / and \ for cross-platform)
+# .NET / backend (build output)
 bin/
 obj/
 **/bin/
 **/obj/
-**/bin\
-**/obj\
 backend/**/bin*
 backend/**/obj*
 .vs/
+
+# Terraform — never commit provider/plugin download cache (can be 100MB+ per provider)
+**/.terraform/
 
 # Coverage / test outputs
 coverage/
