@@ -173,7 +173,13 @@ app.MapControllers();
 // Root health for backward compatibility
 app.MapGet("/", () => Results.Ok("Mock Health System API is running."));
 
-app.Run();
+if (string.Equals(Environment.GetEnvironmentVariable("APPLY_EFMIGRATIONS_ON_STARTUP"), "true", StringComparison.OrdinalIgnoreCase))
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+}
+
+await app.RunAsync();
 
 // Expose entry point for WebApplicationFactory in integration tests.
 public partial class Program

@@ -1,0 +1,175 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy.yml"
+      - "backend/**"
+      - "frontend/**"
+      - "infra/**"
+      - "scripts/deploy/**"
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and test before deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Restore and test backend
+        working-directory: backend
+        run: |
+          dotnet restore MockHealthSystem.sln
+          dotnet test MockHealthSystem.sln -c Release --no-restore
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install and test frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run test
+          npm run build
+
+  deploy:
+    name: Deploy to GCP and Render
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ secrets.GCP_REGION }}
+      GCP_ARTIFACT_REPO: ${{ secrets.GCP_ARTIFACT_REPO }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCP_SA_KEY_JSON: ${{ secrets.GCP_SA_KEY_JSON }}
+      TF_STATE_BUCKET: ${{ secrets.GCP_TF_STATE_BUCKET }}
+      TF_STATE_PREFIX: mock-health-system/gcp
+      RENDER_TF_STATE_PREFIX: mock-health-system/render
+      TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      TF_VAR_region: ${{ secrets.GCP_REGION }}
+      TF_VAR_name_prefix: ${{ secrets.GCP_NAME_PREFIX }}
+      TF_VAR_app_db_password: ${{ secrets.GCP_DB_PASSWORD }}
+      TF_VAR_soap_report_password: ${{ secrets.SOAP_REPORT_PASSWORD }}
+      TF_VAR_admin_key: ${{ secrets.AUTH_SETTINGS_ADMIN_KEY }}
+      TF_VAR_ci_authorized_network_cidr: 0.0.0.0/0
+      TF_VAR_cloud_run_invoker_member: allUsers
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_OWNER_ID: ${{ secrets.RENDER_OWNER_ID }}
+      RENDER_FRONTEND_SERVICE_ID: ${{ secrets.RENDER_FRONTEND_SERVICE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (Workload Identity)
+        if: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_SERVICE_ACCOUNT != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Authenticate to GCP (Service Account JSON fallback)
+        if: ${{ !(env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_SERVICE_ACCOUNT != '') }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ env.GCP_SA_KEY_JSON }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Ensure Artifact Registry repo exists
+        run: |
+          if ! gcloud artifacts repositories describe "$GCP_ARTIFACT_REPO" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud artifacts repositories create "$GCP_ARTIFACT_REPO" \
+              --repository-format=docker \
+              --location "$GCP_REGION" \
+              --description="Docker images for mock-health-system"
+          fi
+
+      - name: Ensure Terraform state bucket exists
+        run: |
+          if ! gcloud storage buckets describe "gs://${TF_STATE_BUCKET}" >/dev/null 2>&1; then
+            gcloud storage buckets create "gs://${TF_STATE_BUCKET}" \
+              --location "${GCP_REGION}" \
+              --uniform-bucket-level-access
+            gcloud storage buckets update "gs://${TF_STATE_BUCKET}" --versioning
+          fi
+
+      - name: Configure Docker auth for Artifact Registry
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push API image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPO}/mock-health-system-api:${IMAGE_TAG}"
+          docker build -t "${IMAGE_URI}" -f backend/Dockerfile backend
+          docker push "${IMAGE_URI}"
+          echo "TF_VAR_api_image=${IMAGE_URI}" >> "$GITHUB_ENV"
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Set CORS frontend URL
+        env:
+          FRONTEND_URL_OVERRIDE: ${{ secrets.FRONTEND_URL }}
+          SERVICE_NAME_PREFIX: ${{ secrets.GCP_NAME_PREFIX }}
+        run: |
+          if [[ -n "${FRONTEND_URL_OVERRIDE:-}" ]]; then
+            echo "TF_VAR_frontend_url=${FRONTEND_URL_OVERRIDE}" >> "${GITHUB_ENV}"
+          else
+            PREFIX="${SERVICE_NAME_PREFIX:-mock-health-system}"
+            echo "TF_VAR_frontend_url=https://${PREFIX}.onrender.com" >> "${GITHUB_ENV}"
+          fi
+
+      - name: Deploy
+        env:
+          AUTO_APPROVE: "true"
+          TRIGGER_DEPLOY: "true"
+          CREATE_FRONTEND: ${{ secrets.RENDER_OWNER_ID != '' && secrets.RENDER_FRONTEND_SERVICE_ID == '' }}
+          SKIP_FRONTEND_SYNC: ${{ secrets.RENDER_API_KEY == '' }}
+        run: bash scripts/deploy/deploy.sh
+
+      - name: Capture API URL
+        id: outputs
+        run: |
+          API_URL="$(terraform -chdir=infra/gcp/terraform output -raw api_base_url)"
+          echo "api_url=${API_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test API
+        run: |
+          curl --fail --silent --show-error "${{ steps.outputs.outputs.api_url }}/"
+
+      - name: Smoke test frontend
+        env:
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+        run: |
+          if [[ -n "${FRONTEND_URL:-}" ]]; then
+            curl --fail --silent --show-error "${FRONTEND_URL}"
+          else
+            echo "FRONTEND_URL not set; skipping frontend smoke test."
+          fi
+
+      - name: Deployment summary
+        run: |
+          {
+            echo "## Deployment Complete"
+            echo ""
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- API URL: ${{ steps.outputs.outputs.api_url }}"
+            echo "- Frontend URL: ${{ secrets.FRONTEND_URL }}"
+          } >> "$GITHUB_STEP_SUMMARY"
