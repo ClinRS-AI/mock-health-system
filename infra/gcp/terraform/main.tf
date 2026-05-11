@@ -103,6 +103,13 @@ resource "google_secret_manager_secret_iam_member" "admin_secret_accessor" {
   member    = "serviceAccount:${google_service_account.api_runtime.email}"
 }
 
+# Required for Cloud SQL Auth Proxy unix socket (/cloudsql/INSTANCE).
+resource "google_project_iam_member" "api_runtime_cloudsql_client" {
+  project = var.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.api_runtime.email}"
+}
+
 resource "google_cloud_run_v2_service" "api" {
   name     = local.api_service_name
   location = var.region
@@ -194,6 +201,7 @@ resource "google_cloud_run_v2_service" "api" {
     google_secret_manager_secret_version.admin_key,
     google_secret_manager_secret_iam_member.soap_secret_accessor,
     google_secret_manager_secret_iam_member.admin_secret_accessor,
+    google_project_iam_member.api_runtime_cloudsql_client,
   ]
 }
 

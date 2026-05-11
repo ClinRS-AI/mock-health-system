@@ -6,6 +6,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.HttpOverrides;
 using MockHealthSystem.Api.Authentication;
 using MockHealthSystem.Api.Middleware;
 using MockHealthSystem.Api.Soap;
@@ -149,6 +150,18 @@ var app = builder.Build();
 // Global exception handling (log and return consistent error response)
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+if (app.Environment.IsProduction())
+{
+    // Cloud Run terminates TLS; the container sees HTTP. Trust X-Forwarded-Proto for HTTPS redirects and link generation.
+    var forwarded = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+    };
+    forwarded.KnownIPNetworks.Clear();
+    forwarded.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwarded);
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
@@ -173,13 +186,23 @@ app.MapControllers();
 // Root health for backward compatibility
 app.MapGet("/", () => Results.Ok("Mock Health System API is running."));
 
-if (string.Equals(Environment.GetEnvironmentVariable("APPLY_EFMIGRATIONS_ON_STARTUP"), "true", StringComparison.OrdinalIgnoreCase))
+// Start listening before EF migrations so Cloud Run's startup probe sees PORT open. Migrations can take longer than the startup timeout.
+await app.StartAsync();
+try
 {
-    using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    if (string.Equals(Environment.GetEnvironmentVariable("APPLY_EFMIGRATIONS_ON_STARTUP"), "true", StringComparison.OrdinalIgnoreCase))
+    {
+        using var scope = app.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    }
+}
+catch
+{
+    await app.StopAsync();
+    throw;
 }
 
-await app.RunAsync();
+await app.WaitForShutdownAsync();
 
 // Expose entry point for WebApplicationFactory in integration tests.
 public partial class Program
