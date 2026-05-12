@@ -149,7 +149,7 @@ Send the same credentials you use for other protected endpoints (e.g. `Authoriza
 | Admin session | `/api/v1/admin/sessions` | No (mint)  | POST only; exchanges static admin key for JWT (see [Admin endpoints](#admin-endpoints)). |
 | Auth settings | `/api/v1/auth-settings` | Admin*   | GET/PUT; *requires `X-Admin-Key` or valid `X-Admin-Session` JWT if `AUTH_SETTINGS_ADMIN_KEY` is set. |
 | Monitoring | `/api/v1/monitoring`    | Admin*     | GET `/requests`, GET `/requests/{id}`, GET `/stats`; same admin headers when `AUTH_SETTINGS_ADMIN_KEY` is set. |
-| Test data  | `/api/v1/test-data`     | Admin*†    | Generate/reset/lookup test patients and related operations. *Same admin headers when key is set. †In `Development`, test-data routes skip admin checks (convenience for local workflows); use non-Development environments to enforce the key. |
+| Test data  | `/api/v1/test-data`     | Admin*†    | Generate/reset/lookup test patients and related operations. *Same admin headers when key is set. †In `Development`, test-data routes skip admin checks (convenience for local workflows); use non-Development environments to enforce the key. **GET `/api/v1/test-data/soap/report-pkeys`** lists SOAP `pkey` values from `ReportQueryDefinitions` (PKeys only, no SQL). |
 
 ---
 

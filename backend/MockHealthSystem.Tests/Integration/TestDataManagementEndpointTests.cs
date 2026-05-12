@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using MockHealthSystem.Infrastructure.Data;
 using MockHealthSystem.Infrastructure.Data.Entities;
@@ -132,6 +133,57 @@ public sealed class TestDataManagementEndpointTests : IClassFixture<MockHealthSy
         var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetSoapReportPkeys_Returns403_WhenAdminKeyConfiguredButMissingHeader()
+    {
+        using var _ = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/test-data/soap/report-pkeys");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetSoapReportPkeys_ReturnsSortedPkeys_WhenAdminKeyCorrect()
+    {
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.ReportQueryDefinitions.RemoveRange(db.ReportQueryDefinitions);
+            var now = DateTime.UtcNow;
+            db.ReportQueryDefinitions.AddRange(
+                new ReportQueryDefinition
+                {
+                    PKey = "SOAP_SORT_Z",
+                    SqlQuery = "SELECT 1 AS \"X\"",
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now
+                },
+                new ReportQueryDefinition
+                {
+                    PKey = "SOAP_SORT_A",
+                    SqlQuery = "SELECT 1 AS \"X\"",
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now
+                });
+            await db.SaveChangesAsync();
+        }
+
+        using var env = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
+        var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/test-data/soap/report-pkeys");
+        request.Headers.Add("X-Admin-Key", "test-admin-key");
+
+        var response = await client.SendAsync(request);
+
+        response.EnsureSuccessStatusCode();
+        var doc = await response.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(doc);
+        var pkeys = doc.RootElement.GetProperty("pkeys").EnumerateArray().Select(e => e.GetString()).ToList();
+        Assert.Equal(new[] { "SOAP_SORT_A", "SOAP_SORT_Z" }, pkeys);
     }
 
     private async Task ResetAuditAndStaffTablesAsync()

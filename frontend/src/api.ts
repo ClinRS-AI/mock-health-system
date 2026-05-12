@@ -10,6 +10,12 @@ const mintApi = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL
 });
 
+/** Normalized API origin from env (no trailing slash), for display and composing paths like `/soap/report`. */
+export function getConfiguredApiBaseUrl(): string {
+  const raw = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  return (raw ?? "").trim().replace(/\/+$/, "");
+}
+
 api.interceptors.request.use((config) => {
   const token = getAdminSessionToken();
   if (token) {
@@ -211,6 +217,15 @@ export async function generateTestPatients(
 
 export async function getPatientTestDataStats(): Promise<PatientTestDataStats> {
   const response = await api.get<PatientTestDataStats>("/api/v1/test-data/patients/stats");
+  return response.data;
+}
+
+export interface SoapReportPkeysResponse {
+  pkeys: string[];
+}
+
+export async function getSoapReportPkeys(): Promise<SoapReportPkeysResponse> {
+  const response = await api.get<SoapReportPkeysResponse>("/api/v1/test-data/soap/report-pkeys");
   return response.data;
 }
 

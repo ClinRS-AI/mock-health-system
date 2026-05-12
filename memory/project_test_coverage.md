@@ -6,12 +6,12 @@ type: project
 
 As of **2026-05-11**, the test suite covers:
 
-**Backend (.NET 10 / xUnit): 320 tests — 0 failures**
+**Backend (.NET 10 / xUnit): 327 tests — 0 failures**
 - Unit: AuthSettingsService, ExceptionHandlingMiddleware, ModelValidationActionFilter, PatientFakerService, PatientMappingService, ReportExecutionService, ApiErrorResponse, **AdminSessionJwtService** (JWT mint/validate with fake clock)
-- Integration: HealthEndpoint, MonitoringEndpoints, AuthenticationModes, AuthController, AuthSettingsEndpoints, PatientEndpoints, SoapReportEndpoints, TestDataManagementEndpoints (generate staff, audit events), SystemController OData (conditions/medications/allergies), TestDataExtended (AddTestPatient, LookupPatient, GetRandomPatient, UpdateTestPatient, GetPatientStats, GeneratePatients validation), PatientSubResourceEndpoints (devices/allergies/providers/conditions/procedures/medications/immunizations/family-history/social-history + search filters), MonitoringExtended (filter/paging/stats), **AdminSessionEndpointTests** (mint success/failure, admin routes with `X-Admin-Session`, forged/expired JWT → 403)
+- Integration: HealthEndpoint, MonitoringEndpoints, AuthenticationModes, AuthController, AuthSettingsEndpoints, PatientEndpoints, SoapReportEndpoints, TestDataManagementEndpointTests (generate staff, audit events, **GetSoapReportPkeys** admin + sorted pkeys), SystemController OData (conditions/medications/allergies), TestDataExtended (AddTestPatient, LookupPatient, GetRandomPatient, UpdateTestPatient, GetPatientStats, GeneratePatients validation), PatientSubResourceEndpoints (devices/allergies/providers/conditions/procedures/medications/immunizations/family-history/social-history + search filters), MonitoringExtended (filter/paging/stats), **AdminSessionEndpointTests** (mint success/failure, admin routes with `X-Admin-Session`, forged/expired JWT → 403)
 
-**Frontend (Vitest / RTL): 51 tests**
-- `api.ts`: exported API helpers including **`exchangeAdminSession`** and `X-Admin-Session` interceptor behavior (via `adminSessionStore` in tests)
+**Frontend (Vitest / RTL): 53 tests**
+- `api.ts`: exported API helpers including **`exchangeAdminSession`**, **`getSoapReportPkeys`**, and `X-Admin-Session` interceptor behavior (via `adminSessionStore` in tests)
 - Components: App, AuthSettingsPage, MonitoringPage, TestDataPage (wrapped with `AdminSessionProvider` in page tests)
 
 **Key test infrastructure:**

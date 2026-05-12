@@ -9,6 +9,7 @@ import {
   getMonitoringStats,
   generateTestPatients,
   getPatientTestDataStats,
+  getSoapReportPkeys,
   generateTestStaff,
   generateRecentAuditEvents,
   resetTestPatients,
@@ -362,6 +363,34 @@ describe("getPatientTestDataStats", () => {
     );
 
     await getPatientTestDataStats();
+  });
+});
+
+// ---- getSoapReportPkeys ----
+
+describe("getSoapReportPkeys", () => {
+  it("calls the soap report-pkeys endpoint and returns pkeys", async () => {
+    server.use(
+      http.get("*/api/v1/test-data/soap/report-pkeys", () =>
+        HttpResponse.json({ pkeys: ["A", "B"] })
+      )
+    );
+
+    const result = await getSoapReportPkeys();
+
+    expect(result).toEqual({ pkeys: ["A", "B"] });
+  });
+
+  it("sends X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("tok", futureExpiry());
+    server.use(
+      http.get("*/api/v1/test-data/soap/report-pkeys", ({ request }) => {
+        expect(request.headers.get("X-Admin-Session")).toBe("tok");
+        return HttpResponse.json({ pkeys: [] });
+      })
+    );
+
+    await getSoapReportPkeys();
   });
 });
 

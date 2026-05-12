@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -7,6 +7,14 @@ import { server } from "./test/server";
 import { renderWithAdminSession } from "./test/renderWithAdminSession";
 
 describe("TestDataPage", () => {
+  beforeEach(() => {
+    server.use(
+      http.get("*/api/v1/test-data/soap/report-pkeys", () =>
+        HttpResponse.json({ pkeys: ["PATIENT_COUNT"] })
+      )
+    );
+  });
+
   it("loads stats and shows key summary values", async () => {
     server.use(
       http.get("*/api/v1/test-data/patients/stats", () =>
@@ -25,6 +33,7 @@ describe("TestDataPage", () => {
     await waitFor(() => {
       expect(screen.getByText("1000")).toBeInTheDocument();
       expect(screen.getByText("10")).toBeInTheDocument();
+      expect(screen.getByText("PATIENT_COUNT")).toBeInTheDocument();
     });
   });
 

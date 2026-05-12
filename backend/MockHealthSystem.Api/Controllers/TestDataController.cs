@@ -848,6 +848,28 @@ RESTART IDENTITY CASCADE;
         return Ok(stats);
     }
 
+    /// <summary>
+    /// Returns SOAP report <c>pkey</c> values defined in <c>ReportQueryDefinitions</c> (sorted). Does not expose SQL text.
+    /// </summary>
+    [HttpGet("soap/report-pkeys")]
+    [ProducesResponseType(typeof(SoapReportPkeysDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetSoapReportPkeysAsync(CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        var pkeys = await _db.ReportQueryDefinitions
+            .AsNoTracking()
+            .OrderBy(r => r.PKey)
+            .Select(r => r.PKey)
+            .ToListAsync(cancellationToken);
+
+        return Ok(new SoapReportPkeysDto { Pkeys = pkeys });
+    }
+
     private static Patient CreateDuplicatePatientVariant(Patient source, Random rng)
     {
         // Copy all faker-backed fields from source so duplicate inherits full demographics.
@@ -1189,6 +1211,11 @@ RESTART IDENTITY CASCADE;
         public int RecentAuditEventCount { get; set; }
         public int TotalStaffCount { get; set; }
         public IReadOnlyList<PatientsBySiteDto> PatientsBySite { get; set; } = Array.Empty<PatientsBySiteDto>();
+    }
+
+    public sealed class SoapReportPkeysDto
+    {
+        public IReadOnlyList<string> Pkeys { get; set; } = Array.Empty<string>();
     }
 }
 
