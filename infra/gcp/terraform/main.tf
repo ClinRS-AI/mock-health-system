@@ -8,10 +8,10 @@ data "google_project" "current" {
 }
 
 locals {
-  sql_instance_name = "${var.name_prefix}-sql"
-  api_service_name  = "${var.name_prefix}-api"
-  soap_secret_name  = "${var.name_prefix}-soap-report-password"
-  admin_secret_name = "${var.name_prefix}-admin-key"
+  sql_instance_name         = "${var.name_prefix}-sql"
+  api_service_name          = "${var.name_prefix}-api"
+  soap_secret_name          = "${var.name_prefix}-soap-report-password"
+  admin_secret_name         = "${var.name_prefix}-admin-key"
   has_ci_authorized_network = trimspace(var.ci_authorized_network_cidr) != ""
   effective_authorized_networks = concat(
     var.authorized_networks,
@@ -20,7 +20,7 @@ locals {
       value = trimspace(var.ci_authorized_network_cidr)
     }] : []
   )
-  db_connection_string = "Host=${google_sql_database_instance.main.public_ip_address};Port=5432;Database=${google_sql_database.app.name};Username=${google_sql_user.app.name};Password=${var.app_db_password};SSL Mode=Require;Trust Server Certificate=true;Include Error Detail=true"
+  db_connection_string        = "Host=${google_sql_database_instance.main.public_ip_address};Port=5432;Database=${google_sql_database.app.name};Username=${google_sql_user.app.name};Password=${var.app_db_password};SSL Mode=Require;Trust Server Certificate=true;Include Error Detail=true"
   cloud_run_connection_string = "Host=/cloudsql/${google_sql_database_instance.main.connection_name};Port=5432;Database=${google_sql_database.app.name};Username=${google_sql_user.app.name};Password=${var.app_db_password};Include Error Detail=true"
   # When org policy restricts principals (e.g. iam.allowedPolicyMemberDomains), bind a tag value
   # that your conditional org policy exempts, then grant run.invoker to allUsers.
@@ -106,6 +106,14 @@ resource "google_service_account" "api_runtime" {
   display_name = "Mock Health System API runtime"
 }
 
+# Cloud Run uses the Unix socket under /cloudsql; the connector calls the Cloud SQL Admin API
+# and requires this role (includes cloudsql.instances.get / connect). Without it, logs show 403 NOT_AUTHORIZED.
+resource "google_project_iam_member" "api_runtime_cloudsql_client" {
+  project = var.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.api_runtime.email}"
+}
+
 resource "google_secret_manager_secret_iam_member" "soap_secret_accessor" {
   secret_id = google_secret_manager_secret.soap_report_password.id
   role      = "roles/secretmanager.secretAccessor"
@@ -138,6 +146,10 @@ resource "google_cloud_run_v2_service" "api" {
 
       ports {
         container_port = var.api_port
+      }
+
+      resources {
+        startup_cpu_boost = true
       }
 
       env {
@@ -203,6 +215,7 @@ resource "google_cloud_run_v2_service" "api" {
   }
 
   depends_on = [
+    google_project_iam_member.api_runtime_cloudsql_client,
     google_sql_database.app,
     google_sql_user.app,
     google_secret_manager_secret_version.soap_report_password,
@@ -219,7 +232,7 @@ resource "google_cloud_run_v2_service" "api" {
 resource "google_tags_location_tag_binding" "api_public_invoker" {
   count = local.create_public_invoker_tag_binding ? 1 : 0
 
-  parent   = "//run.googleapis.com/projects/${data.google_project.current.number}/locations/${var.region}/services/${google_cloud_run_v2_service.api.name}"
+  parent    = "//run.googleapis.com/projects/${data.google_project.current.number}/locations/${var.region}/services/${google_cloud_run_v2_service.api.name}"
   tag_value = trimspace(var.cloud_run_public_invoker_tag_value)
   location  = var.region
 

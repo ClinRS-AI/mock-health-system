@@ -153,10 +153,9 @@ var deferDatabaseUntilMigrated =
     !app.Environment.IsEnvironment("Testing") &&
     string.Equals(Environment.GetEnvironmentVariable("APPLY_EFMIGRATIONS_ON_STARTUP"), "true", StringComparison.OrdinalIgnoreCase);
 
-var startupDatabaseReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 if (!deferDatabaseUntilMigrated)
 {
-    startupDatabaseReady.TrySetResult();
+    Program.HttpTrafficAllowed = true;
 }
 
 // Global exception handling (log and return consistent error response)
@@ -166,7 +165,7 @@ if (deferDatabaseUntilMigrated)
 {
     app.Use(async (context, next) =>
     {
-        if (!startupDatabaseReady.Task.IsCompletedSuccessfully)
+        if (!Program.HttpTrafficAllowed)
         {
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             context.Response.Headers.RetryAfter = "5";
@@ -220,9 +219,12 @@ try
 {
     if (deferDatabaseUntilMigrated)
     {
+        var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+        logger.LogInformation("Applying EF Core database migrations...");
         using var scope = app.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
-        startupDatabaseReady.TrySetResult();
+        Program.HttpTrafficAllowed = true;
+        logger.LogInformation("EF Core database migrations completed; HTTP traffic is now allowed.");
     }
 }
 catch
@@ -236,4 +238,9 @@ await app.WaitForShutdownAsync();
 // Expose entry point for WebApplicationFactory in integration tests.
 public partial class Program
 {
+    /// <summary>
+    /// When startup defers HTTP until EF migrations finish, middleware returns 503 until migrations set this to true.
+    /// Use a volatile field so request threads always see the flag without relying on TaskCompletionSource completion edge cases.
+    /// </summary>
+    internal static volatile bool HttpTrafficAllowed;
 }
