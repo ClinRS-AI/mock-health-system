@@ -149,3 +149,17 @@ variable "cloud_run_public_invoker_tag_value" {
   EOT
   default     = ""
 }
+
+variable "manage_cloudsql_client_iam" {
+  type        = bool
+  description = <<-EOT
+    When true, Terraform grants roles/cloudsql.client to the API runtime service account at the project level.
+    Requires the Terraform identity to have permission to modify project IAM (e.g. resourcemanager.projects.setIamPolicy).
+    GitHub Actions deploy SAs often cannot; leave false and grant the role once with gcloud as a project owner:
+    gcloud projects add-iam-policy-binding PROJECT_ID \
+      --member="serviceAccount:SERVICE_ACCOUNT_EMAIL" \
+      --role="roles/cloudsql.client"
+    Use the Cloud Run runtime service account email (mockhealthsystemapi@PROJECT.iam.gserviceaccount.com for default name_prefix).
+  EOT
+  default     = false
+}

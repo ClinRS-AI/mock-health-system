@@ -106,9 +106,11 @@ resource "google_service_account" "api_runtime" {
   display_name = "Mock Health System API runtime"
 }
 
-# Cloud Run uses the Unix socket under /cloudsql; the connector calls the Cloud SQL Admin API
-# and requires this role (includes cloudsql.instances.get / connect). Without it, logs show 403 NOT_AUTHORIZED.
+# Cloud Run uses the Unix socket under /cloudsql; the runtime SA needs roles/cloudsql.client
+# (includes cloudsql.instances.get / connect). Many CI deploy principals cannot set project IAM;
+# set manage_cloudsql_client_iam=false (default) and grant the binding once with gcloud (see variable description).
 resource "google_project_iam_member" "api_runtime_cloudsql_client" {
+  count   = var.manage_cloudsql_client_iam ? 1 : 0
   project = var.project_id
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:${google_service_account.api_runtime.email}"
@@ -215,7 +217,6 @@ resource "google_cloud_run_v2_service" "api" {
   }
 
   depends_on = [
-    google_project_iam_member.api_runtime_cloudsql_client,
     google_sql_database.app,
     google_sql_user.app,
     google_secret_manager_secret_version.soap_report_password,
