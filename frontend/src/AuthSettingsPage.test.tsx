@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import AuthSettingsPage from "./AuthSettingsPage";
 import { server } from "./test/server";
+import { renderWithAdminSession } from "./test/renderWithAdminSession";
 
 const authSettingsPath = "*/api/v1/auth-settings";
 
@@ -23,7 +24,7 @@ describe("AuthSettingsPage", () => {
       )
     );
 
-    render(<AuthSettingsPage />);
+    renderWithAdminSession(<AuthSettingsPage />);
 
     await waitFor(() => {
       expect(screen.getByText("PROTECTED")).toBeInTheDocument();
@@ -34,7 +35,7 @@ describe("AuthSettingsPage", () => {
   it("shows load error when auth settings request fails", async () => {
     server.use(http.get(authSettingsPath, () => HttpResponse.json({}, { status: 403 })));
 
-    render(<AuthSettingsPage />);
+    renderWithAdminSession(<AuthSettingsPage />);
 
     await waitFor(() => {
       expect(
@@ -74,7 +75,7 @@ describe("AuthSettingsPage", () => {
       })
     );
 
-    render(<AuthSettingsPage />);
+    renderWithAdminSession(<AuthSettingsPage />);
     await screen.findByRole("button", { name: /^bearer/i });
 
     await user.click(screen.getByRole("button", { name: /^bearer/i }));

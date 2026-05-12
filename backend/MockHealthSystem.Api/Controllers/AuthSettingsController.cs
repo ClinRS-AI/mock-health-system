@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MockHealthSystem.Api.Models.Auth;
 using MockHealthSystem.Api.Services;
+using MockHealthSystem.Api.Services.AdminSession;
 using MockHealthSystem.Infrastructure.Data;
 
 namespace MockHealthSystem.Api.Controllers;
@@ -19,11 +20,16 @@ public sealed class AuthSettingsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IAuthSettingsService _authSettingsService;
+    private readonly IAdminRequestValidator _adminRequestValidator;
 
-    public AuthSettingsController(AppDbContext db, IAuthSettingsService authSettingsService)
+    public AuthSettingsController(
+        AppDbContext db,
+        IAuthSettingsService authSettingsService,
+        IAdminRequestValidator adminRequestValidator)
     {
         _db = db;
         _authSettingsService = authSettingsService;
+        _adminRequestValidator = adminRequestValidator;
     }
 
     /// <summary>
@@ -34,7 +40,7 @@ public sealed class AuthSettingsController : ControllerBase
     [ProducesResponseType(typeof(AuthSettingsViewModel), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: false))
         {
             return Forbid();
         }
@@ -70,7 +76,7 @@ public sealed class AuthSettingsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateAsync([FromBody] AuthSettingsUpdateModel model, CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: false))
         {
             return Forbid();
         }
@@ -179,24 +185,6 @@ public sealed class AuthSettingsController : ControllerBase
         };
 
         return Ok(viewModel);
-    }
-
-    private bool IsAdminRequest()
-    {
-        var requiredKey = Environment.GetEnvironmentVariable("AUTH_SETTINGS_ADMIN_KEY");
-        if (string.IsNullOrWhiteSpace(requiredKey))
-        {
-            // No key configured: treat all authenticated callers as admin (dev convenience).
-            return true;
-        }
-
-        if (!Request.Headers.TryGetValue("X-Admin-Key", out var headerValues))
-        {
-            return false;
-        }
-
-        var provided = headerValues.ToString();
-        return string.Equals(provided, requiredKey, StringComparison.Ordinal);
     }
 }
 

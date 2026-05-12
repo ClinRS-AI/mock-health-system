@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import TestDataPage from "./TestDataPage";
 import { server } from "./test/server";
+import { renderWithAdminSession } from "./test/renderWithAdminSession";
 
 describe("TestDataPage", () => {
   it("loads stats and shows key summary values", async () => {
@@ -19,7 +20,7 @@ describe("TestDataPage", () => {
       )
     );
 
-    render(<TestDataPage />);
+    renderWithAdminSession(<TestDataPage />);
 
     await waitFor(() => {
       expect(screen.getByText("1000")).toBeInTheDocument();
@@ -50,7 +51,7 @@ describe("TestDataPage", () => {
       )
     );
 
-    render(<TestDataPage />);
+    renderWithAdminSession(<TestDataPage />);
     await screen.findByRole("button", { name: /generate patients/i });
     await user.click(screen.getByRole("button", { name: /generate patients/i }));
 
@@ -75,7 +76,7 @@ describe("TestDataPage", () => {
       http.post("*/api/v1/test-data/patients/generate", () => HttpResponse.json({}, { status: 500 }))
     );
 
-    render(<TestDataPage />);
+    renderWithAdminSession(<TestDataPage />);
     await screen.findByRole("button", { name: /generate patients/i });
     await user.click(screen.getByRole("button", { name: /generate patients/i }));
 

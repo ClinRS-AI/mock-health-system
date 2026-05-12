@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MockHealthSystem.Api.Models.Patients;
 using MockHealthSystem.Api.Services;
+using MockHealthSystem.Api.Services.AdminSession;
 using MockHealthSystem.Infrastructure.Data;
 using MockHealthSystem.Infrastructure.Data.Entities;
 
@@ -21,10 +22,12 @@ namespace MockHealthSystem.Api.Controllers;
 public sealed class TestDataController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IAdminRequestValidator _adminRequestValidator;
 
-    public TestDataController(AppDbContext db)
+    public TestDataController(AppDbContext db, IAdminRequestValidator adminRequestValidator)
     {
         _db = db;
+        _adminRequestValidator = adminRequestValidator;
     }
 
     /// <summary>
@@ -39,7 +42,7 @@ public sealed class TestDataController : ControllerBase
         [FromBody] GeneratePatientsRequest? request,
         CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
         {
             return Forbid();
         }
@@ -210,7 +213,7 @@ public sealed class TestDataController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ResetPatientsAsync(CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
         {
             return Forbid();
         }
@@ -250,7 +253,7 @@ RESTART IDENTITY CASCADE;
         [FromBody] GenerateStaffRequest? request,
         CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
         {
             return Forbid();
         }
@@ -311,7 +314,7 @@ RESTART IDENTITY CASCADE;
         [FromBody] GenerateRecentAuditEventsRequest? request,
         CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
         {
             return Forbid();
         }
@@ -523,7 +526,7 @@ RESTART IDENTITY CASCADE;
         [FromBody] AddTestPatientRequest request,
         CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
         {
             return Forbid();
         }
@@ -581,7 +584,7 @@ RESTART IDENTITY CASCADE;
         [FromQuery] string? email,
         CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
         {
             return Forbid();
         }
@@ -632,7 +635,7 @@ RESTART IDENTITY CASCADE;
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetRandomPatientAsync(CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
         {
             return Forbid();
         }
@@ -672,7 +675,7 @@ RESTART IDENTITY CASCADE;
         CancellationToken cancellationToken,
         [FromQuery] bool saveWithAudit)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
         {
             return Forbid();
         }
@@ -794,7 +797,7 @@ RESTART IDENTITY CASCADE;
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetPatientStatsAsync(CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
         {
             return Forbid();
         }
@@ -1112,31 +1115,6 @@ RESTART IDENTITY CASCADE;
         existing.Number = phoneModel.Number;
         existing.RawNumber = phoneModel.RawNumber;
         existing.OutOfService = phoneModel.OutOfService;
-    }
-
-    private bool IsAdminRequest()
-    {
-        // Always allow in Development for convenience, even if an admin key is configured.
-        var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-        if (string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        var requiredKey = Environment.GetEnvironmentVariable("AUTH_SETTINGS_ADMIN_KEY");
-        if (string.IsNullOrWhiteSpace(requiredKey))
-        {
-            // No key configured: treat all callers as admin (dev convenience).
-            return true;
-        }
-
-        if (!Request.Headers.TryGetValue("X-Admin-Key", out var headerValues))
-        {
-            return false;
-        }
-
-        var provided = headerValues.ToString();
-        return string.Equals(provided, requiredKey, StringComparison.Ordinal);
     }
 
     public sealed class GeneratePatientsRequest

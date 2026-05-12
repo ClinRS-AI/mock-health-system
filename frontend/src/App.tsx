@@ -1,10 +1,12 @@
 import React, { useState } from "react";
+import AdminAccessPage from "./AdminAccessPage";
+import AdminSessionProvider from "./AdminSessionContext";
 import AuthSettingsPage from "./AuthSettingsPage";
 import MonitoringPage from "./MonitoringPage";
 import TestDataPage from "./TestDataPage";
 import { getApiStatus } from "./api";
 
-type AppView = "status" | "auth" | "monitoring" | "testData";
+type AppView = "status" | "admin" | "auth" | "monitoring" | "testData";
 
 function App() {
   const [view, setView] = useState<AppView>("status");
@@ -28,67 +30,79 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-4xl bg-white shadow-lg rounded-xl p-6 space-y-6">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-            Mock Health System
-          </h1>
-          <p className="text-sm text-slate-500">
-            Fake health system for development and testing. Mocks API endpoints for CC CTMS based off the public API documentation.
-          </p>
-        </header>
+    <AdminSessionProvider>
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="w-full max-w-4xl bg-white shadow-lg rounded-xl p-6 space-y-6">
+          <header className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+              Mock Health System
+            </h1>
+            <p className="text-sm text-slate-500">
+              Fake health system for development and testing. Mocks API endpoints for CC CTMS based off the public API documentation.
+            </p>
+          </header>
 
-        <nav className="flex gap-3 border-b border-slate-100 pb-3 text-sm">
-          <button
-            type="button"
-            className={`px-3 py-1.5 rounded-md ${
-              view === "status"
-                ? "bg-sky-50 text-sky-700 border border-sky-200"
-                : "text-slate-600 hover:bg-slate-50 border border-transparent"
-            }`}
-            onClick={() => setView("status")}
-          >
-            API status
-          </button>
-          <button
-            type="button"
-            className={`px-3 py-1.5 rounded-md ${
-              view === "auth"
-                ? "bg-sky-50 text-sky-700 border border-sky-200"
-                : "text-slate-600 hover:bg-slate-50 border border-transparent"
-            }`}
-            onClick={() => setView("auth")}
-          >
-            Authentication settings
-          </button>
-          <button
-            type="button"
-            className={`px-3 py-1.5 rounded-md ${
-              view === "monitoring"
-                ? "bg-sky-50 text-sky-700 border border-sky-200"
-                : "text-slate-600 hover:bg-slate-50 border border-transparent"
-            }`}
-            onClick={() => setView("monitoring")}
-          >
-            Monitoring
-          </button>
-          <button
-            type="button"
-            className={`px-3 py-1.5 rounded-md ${
-              view === "testData"
-                ? "bg-sky-50 text-sky-700 border border-sky-200"
-                : "text-slate-600 hover:bg-slate-50 border border-transparent"
-            }`}
-            onClick={() => setView("testData")}
-          >
-            Test data management
-          </button>
-        </nav>
+          <nav className="flex flex-wrap gap-3 border-b border-slate-100 pb-3 text-sm">
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-md ${
+                view === "status"
+                  ? "bg-sky-50 text-sky-700 border border-sky-200"
+                  : "text-slate-600 hover:bg-slate-50 border border-transparent"
+              }`}
+              onClick={() => setView("status")}
+            >
+              API status
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-md ${
+                view === "admin"
+                  ? "bg-sky-50 text-sky-700 border border-sky-200"
+                  : "text-slate-600 hover:bg-slate-50 border border-transparent"
+              }`}
+              onClick={() => setView("admin")}
+            >
+              Admin access
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-md ${
+                view === "auth"
+                  ? "bg-sky-50 text-sky-700 border border-sky-200"
+                  : "text-slate-600 hover:bg-slate-50 border border-transparent"
+              }`}
+              onClick={() => setView("auth")}
+            >
+              Authentication settings
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-md ${
+                view === "monitoring"
+                  ? "bg-sky-50 text-sky-700 border border-sky-200"
+                  : "text-slate-600 hover:bg-slate-50 border border-transparent"
+              }`}
+              onClick={() => setView("monitoring")}
+            >
+              Monitoring
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-md ${
+                view === "testData"
+                  ? "bg-sky-50 text-sky-700 border border-sky-200"
+                  : "text-slate-600 hover:bg-slate-50 border border-transparent"
+              }`}
+              onClick={() => setView("testData")}
+            >
+              Test data management
+            </button>
+          </nav>
 
-        <main className="space-y-4">
-          {view === "status" && (
-            <>
+          <main className="space-y-4">
+            {view === "status" && (
+              <>
               <section className="space-y-2">
                 <h2 className="text-sm font-medium text-slate-700">Stack overview</h2>
                 <ul className="text-sm text-slate-600 list-disc list-inside space-y-1">
@@ -116,8 +130,10 @@ function App() {
                   </div>
                 )}
               </section>
-            </>
-          )}
+              </>
+            )}
+
+          {view === "admin" && <AdminAccessPage />}
 
           {view === "auth" && <AuthSettingsPage />}
 
@@ -132,6 +148,7 @@ function App() {
         </footer>
       </div>
     </div>
+    </AdminSessionProvider>
   );
 }
 

@@ -19,9 +19,11 @@ import {
   getPatientTestDataStats,
   type PatientTestDataStats
 } from "./api";
+import AdminSessionBanner from "./AdminSessionBanner";
+import { useAdminSession } from "./AdminSessionContext";
 
 const TestDataPage: React.FC = () => {
-  const [adminKey, setAdminKey] = useState("");
+  const { hasSession } = useAdminSession();
 
   const [generateOptions, setGenerateOptions] = useState<GeneratePatientsOptions>({
     totalCount: 5000,
@@ -58,9 +60,9 @@ const TestDataPage: React.FC = () => {
   const [savingLookupMode, setSavingLookupMode] = useState<"none" | "save" | "audit">("none");
   const [error, setError] = useState<string | null>(null);
 
-  async function loadStats(currentAdminKey: string) {
+  async function loadStats() {
     try {
-      const data = await getPatientTestDataStats(currentAdminKey || undefined);
+      const data = await getPatientTestDataStats();
       setStats(data);
     } catch (err) {
       console.error(err);
@@ -70,9 +72,8 @@ const TestDataPage: React.FC = () => {
   }
 
   useEffect(() => {
-    void loadStats(adminKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void loadStats();
+  }, [hasSession]);
 
   async function handleReset() {
     try {
@@ -80,8 +81,8 @@ const TestDataPage: React.FC = () => {
       setError(null);
       setGenerateResult(null);
 
-      await resetTestPatients(adminKey || undefined);
-      await loadStats(adminKey);
+      await resetTestPatients();
+      await loadStats();
     } catch (err) {
       console.error(err);
       setError("Unable to reset patients. Check the admin key and backend.");
@@ -95,9 +96,9 @@ const TestDataPage: React.FC = () => {
       setLoadingGenerate(true);
       setError(null);
 
-      const result = await generateTestPatients(generateOptions, adminKey || undefined);
+      const result = await generateTestPatients(generateOptions);
       setGenerateResult(result);
-      await loadStats(adminKey);
+      await loadStats();
     } catch (err) {
       console.error(err);
       setError("Unable to generate patients. Check the admin key and backend.");
@@ -112,9 +113,9 @@ const TestDataPage: React.FC = () => {
       setLoadingGenerateStaff(true);
       setError(null);
 
-      const result = await generateTestStaff(staffGenerateOptions, adminKey || undefined);
+      const result = await generateTestStaff(staffGenerateOptions);
       setStaffGenerateResult(result);
-      await loadStats(adminKey);
+      await loadStats();
     } catch (err) {
       console.error(err);
       setError("Unable to generate staff. Check the admin key and backend.");
@@ -129,9 +130,9 @@ const TestDataPage: React.FC = () => {
       setLoadingGenerateAuditEvents(true);
       setError(null);
 
-      const result = await generateRecentAuditEvents(auditEventsGenerateOptions, adminKey || undefined);
+      const result = await generateRecentAuditEvents(auditEventsGenerateOptions);
       setAuditEventsGenerateResult(result);
-      await loadStats(adminKey);
+      await loadStats();
     } catch (err) {
       console.error(err);
       setError("Unable to generate recent audit events. Ensure staff (and patients if needed) exist.");
@@ -149,17 +150,14 @@ const TestDataPage: React.FC = () => {
       setError(null);
       setAddResult(null);
 
-      const result = await addTestPatient(
-        {
-          firstName: addForm.firstName.trim(),
-          lastName: addForm.lastName.trim(),
-          email: addForm.email.trim()
-        },
-        adminKey || undefined
-      );
+      const result = await addTestPatient({
+        firstName: addForm.firstName.trim(),
+        lastName: addForm.lastName.trim(),
+        email: addForm.email.trim()
+      });
       setAddResult(result);
       setAddForm({ firstName: "", lastName: "", email: "" });
-      await loadStats(adminKey);
+      await loadStats();
     } catch (err) {
       console.error(err);
       setError("Unable to add patient. Check the admin key and backend.");
@@ -191,7 +189,7 @@ const TestDataPage: React.FC = () => {
       setLookupResult(null);
       setLookupNotFound(false);
 
-      const result = await lookupTestPatient(params, adminKey || undefined);
+      const result = await lookupTestPatient(params);
       setLookupResult(result);
       setLookupEditJson(JSON.stringify(result, null, 2));
       setIsEditingLookup(false);
@@ -216,7 +214,7 @@ const TestDataPage: React.FC = () => {
       setError(null);
       setLookupNotFound(false);
 
-      const result = await getRandomTestPatient(adminKey || undefined);
+      const result = await getRandomTestPatient();
       setLookupResult(result);
       setLookupEditJson(JSON.stringify(result, null, 2));
       setIsEditingLookup(false);
@@ -242,18 +240,13 @@ const TestDataPage: React.FC = () => {
       setError(null);
 
       const parsed = JSON.parse(lookupEditJson) as LookupPatientResponse;
-      const updated = await updateTestPatient(
-        lookupResult.id,
-        parsed,
-        adminKey || undefined,
-        withAudit
-      );
-      const refreshed = await lookupTestPatient({ id: updated.id }, adminKey || undefined);
+      const updated = await updateTestPatient(lookupResult.id, parsed, withAudit);
+      const refreshed = await lookupTestPatient({ id: updated.id });
 
       setLookupResult(refreshed);
       setLookupEditJson(JSON.stringify(refreshed, null, 2));
       setIsEditingLookup(false);
-      await loadStats(adminKey);
+      await loadStats();
     } catch (err) {
       console.error(err);
       setError("Unable to save patient record. Ensure JSON is valid and check admin access.");
@@ -264,33 +257,23 @@ const TestDataPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-sm font-medium text-slate-700">Test data management</h2>
-          <p className="text-xs text-slate-500">
-            Generate large volumes of synthetic patients (with controlled duplicates). Reset clears
-            patient data; use Generate patients again for a consistent dataset.
-          </p>
-        </div>
+      <AdminSessionBanner />
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <input
-            type="password"
-            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-            placeholder="Admin key (X-Admin-Key) if configured"
-            value={adminKey}
-            onChange={(e) => {
-              const value = e.target.value;
-              setAdminKey(value);
-              void loadStats(value);
-            }}
-          />
+      <section className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-medium text-slate-700">Test data management</h2>
+            <p className="text-xs text-slate-500">
+              Generate large volumes of synthetic patients (with controlled duplicates). Reset clears
+              patient data; use Generate patients again for a consistent dataset.
+            </p>
+          </div>
           <button
             type="button"
-            onClick={() => void loadStats(adminKey)}
-            className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => void loadStats()}
+            className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 self-start"
           >
-            Refresh
+            Refresh stats
           </button>
         </div>
       </section>

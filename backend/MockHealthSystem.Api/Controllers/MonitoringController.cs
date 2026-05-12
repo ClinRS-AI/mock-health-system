@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MockHealthSystem.Api.Monitoring;
 using MockHealthSystem.Api.Models.Monitoring;
+using MockHealthSystem.Api.Services.AdminSession;
 using MockHealthSystem.Infrastructure.Data;
 
 namespace MockHealthSystem.Api.Controllers;
@@ -18,10 +19,12 @@ namespace MockHealthSystem.Api.Controllers;
 public sealed class MonitoringController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IAdminRequestValidator _adminRequestValidator;
 
-    public MonitoringController(AppDbContext db)
+    public MonitoringController(AppDbContext db, IAdminRequestValidator adminRequestValidator)
     {
         _db = db;
+        _adminRequestValidator = adminRequestValidator;
     }
 
     /// <summary>
@@ -41,7 +44,7 @@ public sealed class MonitoringController : ControllerBase
         [FromQuery] DateTime? sinceUtc,
         CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: false))
         {
             return Forbid();
         }
@@ -92,7 +95,7 @@ public sealed class MonitoringController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetRequestAsync(int id, CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: false))
         {
             return Forbid();
         }
@@ -134,7 +137,7 @@ public sealed class MonitoringController : ControllerBase
     [ProducesResponseType(typeof(MonitoringStatsModel), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStatsAsync(CancellationToken cancellationToken)
     {
-        if (!IsAdminRequest())
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: false))
         {
             return Forbid();
         }
@@ -179,24 +182,6 @@ public sealed class MonitoringController : ControllerBase
         };
 
         return Ok(model);
-    }
-
-    private bool IsAdminRequest()
-    {
-        var requiredKey = Environment.GetEnvironmentVariable("AUTH_SETTINGS_ADMIN_KEY");
-        if (string.IsNullOrWhiteSpace(requiredKey))
-        {
-            // No key configured: treat all callers as admin (dev convenience).
-            return true;
-        }
-
-        if (!Request.Headers.TryGetValue("X-Admin-Key", out var headerValues))
-        {
-            return false;
-        }
-
-        var provided = headerValues.ToString();
-        return string.Equals(provided, requiredKey, StringComparison.Ordinal);
     }
 }
 
