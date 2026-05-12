@@ -25,6 +25,7 @@ describe("App", () => {
     expect(
       screen.getByRole("button", { name: /check api status/i })
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /admin access/i })).toBeInTheDocument();
   });
 
   it("shows API status when check succeeds", async () => {

@@ -9,8 +9,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
 using MockHealthSystem.Api.Authentication;
 using MockHealthSystem.Api.Middleware;
-using MockHealthSystem.Api.Soap;
 using MockHealthSystem.Api.Services;
+using MockHealthSystem.Api.Services.AdminSession;
+using MockHealthSystem.Api.Soap;
 using MockHealthSystem.Infrastructure.Data;
 
 // Load backend/.env before building the host so ASPNETCORE_ENVIRONMENT is set for middleware (e.g. HTTPS redirect)
@@ -124,6 +125,12 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IAuthSettingsService, AuthSettingsService>();
 builder.Services.AddScoped<IReportExecutionService, ReportExecutionService>();
 builder.Services.AddScoped<IReportSoapService, ReportSoapService>();
+
+builder.Services.Configure<AdminSessionOptions>(
+    builder.Configuration.GetSection(AdminSessionOptions.SectionName));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IAdminSessionJwtService, AdminSessionJwtService>();
+builder.Services.AddSingleton<IAdminRequestValidator, AdminRequestValidator>();
 
 builder.Services.AddAuthentication("Mock")
     .AddScheme<AuthenticationSchemeOptions, MockAuthHandler>("Mock", _ => { });

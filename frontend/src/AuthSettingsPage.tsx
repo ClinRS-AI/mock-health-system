@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import type { AuthMode, AuthSettings, UpdateAuthSettingsRequest } from "./api";
 import { getAuthSettings, updateAuthSettings } from "./api";
+import AdminSessionBanner from "./AdminSessionBanner";
+import { useAdminSession } from "./AdminSessionContext";
 
 type FormState = {
   mode: AuthMode;
@@ -9,7 +11,6 @@ type FormState = {
   oAuthClientSecret: string;
   accessTokenLifetimeMinutes: number;
   refreshTokenLifetimeDays: number;
-  adminKey: string;
 };
 
 const defaultState: FormState = {
@@ -18,8 +19,7 @@ const defaultState: FormState = {
   oAuthClientId: "",
   oAuthClientSecret: "",
   accessTokenLifetimeMinutes: 60,
-  refreshTokenLifetimeDays: 30,
-  adminKey: ""
+  refreshTokenLifetimeDays: 30
 };
 
 function mask(value: string, visible: number = 4): string {
@@ -30,6 +30,7 @@ function mask(value: string, visible: number = 4): string {
 }
 
 const AuthSettingsPage: React.FC = () => {
+  const { hasSession } = useAdminSession();
   const [form, setForm] = useState<FormState>(defaultState);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -40,18 +41,21 @@ const AuthSettingsPage: React.FC = () => {
 
   useEffect(() => {
     void loadSettings();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSession]);
 
   async function loadSettings() {
     try {
       setLoading(true);
       setError(null);
-      const settings = await getAuthSettings(form.adminKey || undefined);
+      const settings = await getAuthSettings();
       applySettingsToForm(settings);
       setHasAnyTokens(settings.hasAnyTokens);
     } catch (err) {
       console.error(err);
-      setError("Unable to load authentication settings. Check the admin key and backend.");
+      setError(
+        "Unable to load authentication settings. Use Admin access to sign in if the server requires an admin key."
+      );
     } finally {
       setLoading(false);
     }
@@ -109,13 +113,15 @@ const AuthSettingsPage: React.FC = () => {
         refreshTokenLifetimeDays: form.refreshTokenLifetimeDays
       };
 
-      const updated = await updateAuthSettings(payload, form.adminKey || undefined);
+      const updated = await updateAuthSettings(payload);
       applySettingsToForm(updated);
       setHasAnyTokens(updated.hasAnyTokens);
       setSuccess("Authentication settings saved.");
     } catch (err) {
       console.error(err);
-      setError("Unable to save authentication settings. Check the admin key and backend.");
+      setError(
+        "Unable to save authentication settings. Ensure you have an admin session or the backend is reachable."
+      );
     } finally {
       setSaving(false);
     }
@@ -137,35 +143,19 @@ const AuthSettingsPage: React.FC = () => {
         </p>
       </header>
 
+      <AdminSessionBanner />
+
       <form onSubmit={handleSubmit} className="space-y-6">
-          <section className="space-y-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-sm font-medium text-slate-700">Admin access</h2>
-                <p className="text-xs text-slate-500">
-                  If the backend is configured with <code>AUTH_SETTINGS_ADMIN_KEY</code>, you must
-                  supply it here to read and update settings.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <input
-                type="password"
-                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                placeholder="Admin key (optional in local dev)"
-                value={form.adminKey}
-                onChange={(e) => handleChange("adminKey", e.target.value)}
-              />
-              <button
-                type="button"
-                className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                onClick={() => void loadSettings()}
-                disabled={loading}
-              >
-                {loading ? "Loading..." : "Reload settings"}
-              </button>
-            </div>
-          </section>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              onClick={() => void loadSettings()}
+              disabled={loading}
+            >
+              {loading ? "Loading..." : "Reload settings"}
+            </button>
+          </div>
 
           <section className="space-y-3">
             <div className="flex items-center justify-between">

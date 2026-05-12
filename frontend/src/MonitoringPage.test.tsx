@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import MonitoringPage from "./MonitoringPage";
 import { server } from "./test/server";
+import { renderWithAdminSession } from "./test/renderWithAdminSession";
 
 describe("MonitoringPage", () => {
   it("loads and displays monitoring requests and stats", async () => {
@@ -32,7 +33,7 @@ describe("MonitoringPage", () => {
       )
     );
 
-    render(<MonitoringPage />);
+    renderWithAdminSession(<MonitoringPage />);
 
     await waitFor(() => {
       expect(screen.getByText("/api/v1/health")).toBeInTheDocument();
@@ -86,7 +87,7 @@ describe("MonitoringPage", () => {
       )
     );
 
-    render(<MonitoringPage />);
+    renderWithAdminSession(<MonitoringPage />);
     await screen.findByText("/api/v1/health");
 
     await user.click(screen.getByText("/api/v1/health"));
@@ -110,7 +111,7 @@ describe("MonitoringPage", () => {
       )
     );
 
-    render(<MonitoringPage />);
+    renderWithAdminSession(<MonitoringPage />);
 
     await waitFor(() => {
       expect(screen.getByText(/unable to load monitored requests/i)).toBeInTheDocument();

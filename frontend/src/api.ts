@@ -1,13 +1,39 @@
 import axios from "axios";
+import { getAdminSessionToken } from "./adminSessionStore";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL
+});
+
+/** Dedicated client for minting admin sessions (no X-Admin-Session interceptor). */
+const mintApi = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL
+});
+
+api.interceptors.request.use((config) => {
+  const token = getAdminSessionToken();
+  if (token) {
+    config.headers.set("X-Admin-Session", token);
+  }
+  return config;
 });
 
 /** Calls the versioned health endpoint (GET /api/v1/health). */
 export async function getApiStatus(): Promise<string> {
   const response = await api.get<string>("/api/v1/health");
   return typeof response.data === "string" ? response.data : JSON.stringify(response.data);
+}
+
+export interface CreateAdminSessionResponse {
+  accessToken: string;
+  expiresAtUtc: string;
+}
+
+export async function exchangeAdminSession(adminKey: string): Promise<CreateAdminSessionResponse> {
+  const response = await mintApi.post<CreateAdminSessionResponse>("/api/v1/admin/sessions", {
+    adminKey
+  });
+  return response.data;
 }
 
 export type AuthMode = "None" | "Bearer" | "CCAPIKey" | "OAuth";
@@ -31,24 +57,13 @@ export interface UpdateAuthSettingsRequest {
   refreshTokenLifetimeDays?: number;
 }
 
-export async function getAuthSettings(adminKey?: string): Promise<AuthSettings> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-  const response = await api.get<AuthSettings>("/api/v1/auth-settings", { headers });
+export async function getAuthSettings(): Promise<AuthSettings> {
+  const response = await api.get<AuthSettings>("/api/v1/auth-settings");
   return response.data;
 }
 
-export async function updateAuthSettings(
-  payload: UpdateAuthSettingsRequest,
-  adminKey?: string
-): Promise<AuthSettings> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-  const response = await api.put<AuthSettings>("/api/v1/auth-settings", payload, { headers });
+export async function updateAuthSettings(payload: UpdateAuthSettingsRequest): Promise<AuthSettings> {
+  const response = await api.put<AuthSettings>("/api/v1/auth-settings", payload);
   return response.data;
 }
 
@@ -87,14 +102,8 @@ export interface GetMonitoredRequestsParams {
 }
 
 export async function getMonitoredRequests(
-  params?: GetMonitoredRequestsParams,
-  adminKey?: string
+  params?: GetMonitoredRequestsParams
 ): Promise<MonitoredRequestSummary[]> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
   const searchParams = new URLSearchParams();
   if (params?.take != null) searchParams.set("take", String(params.take));
   if (params?.pathPrefix) searchParams.set("pathPrefix", params.pathPrefix);
@@ -104,22 +113,12 @@ export async function getMonitoredRequests(
   const query = searchParams.toString();
   const url = `/api/v1/monitoring/requests${query ? `?${query}` : ""}`;
 
-  const response = await api.get<MonitoredRequestSummary[]>(url, { headers });
+  const response = await api.get<MonitoredRequestSummary[]>(url);
   return response.data;
 }
 
-export async function getMonitoredRequest(
-  id: number,
-  adminKey?: string
-): Promise<MonitoredRequestDetail> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
-  const response = await api.get<MonitoredRequestDetail>(`/api/v1/monitoring/requests/${id}`, {
-    headers
-  });
+export async function getMonitoredRequest(id: number): Promise<MonitoredRequestDetail> {
+  const response = await api.get<MonitoredRequestDetail>(`/api/v1/monitoring/requests/${id}`);
   return response.data;
 }
 
@@ -136,12 +135,8 @@ export interface MonitoringStats {
   maxDurationMs?: number | null;
 }
 
-export async function getMonitoringStats(adminKey?: string): Promise<MonitoringStats> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-  const response = await api.get<MonitoringStats>("/api/v1/monitoring/stats", { headers });
+export async function getMonitoringStats(): Promise<MonitoringStats> {
+  const response = await api.get<MonitoringStats>("/api/v1/monitoring/stats");
   return response.data;
 }
 
@@ -205,75 +200,37 @@ export interface PatientTestDataStats {
 }
 
 export async function generateTestPatients(
-  options: GeneratePatientsOptions,
-  adminKey?: string
+  options: GeneratePatientsOptions
 ): Promise<GeneratePatientsResult> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
   const response = await api.post<GeneratePatientsResult>(
     "/api/v1/test-data/patients/generate",
-    options,
-    { headers }
+    options
   );
   return response.data;
 }
 
-export async function getPatientTestDataStats(
-  adminKey?: string
-): Promise<PatientTestDataStats> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
-  const response = await api.get<PatientTestDataStats>("/api/v1/test-data/patients/stats", {
-    headers
-  });
+export async function getPatientTestDataStats(): Promise<PatientTestDataStats> {
+  const response = await api.get<PatientTestDataStats>("/api/v1/test-data/patients/stats");
   return response.data;
 }
 
-export async function generateTestStaff(
-  options: GenerateStaffOptions,
-  adminKey?: string
-): Promise<GenerateStaffResult> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
-  const response = await api.post<GenerateStaffResult>("/api/v1/test-data/staff/generate", options, {
-    headers
-  });
+export async function generateTestStaff(options: GenerateStaffOptions): Promise<GenerateStaffResult> {
+  const response = await api.post<GenerateStaffResult>("/api/v1/test-data/staff/generate", options);
   return response.data;
 }
 
 export async function generateRecentAuditEvents(
-  options: GenerateRecentAuditEventsOptions,
-  adminKey?: string
+  options: GenerateRecentAuditEventsOptions
 ): Promise<GenerateRecentAuditEventsResult> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
   const response = await api.post<GenerateRecentAuditEventsResult>(
     "/api/v1/test-data/audit-events/generate",
-    options,
-    { headers }
+    options
   );
   return response.data;
 }
 
-export async function resetTestPatients(adminKey?: string): Promise<void> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
-  await api.post("/api/v1/test-data/patients/reset", {}, { headers });
+export async function resetTestPatients(): Promise<void> {
+  await api.post("/api/v1/test-data/patients/reset", {});
 }
 
 export interface AddTestPatientRequest {
@@ -287,20 +244,8 @@ export interface AddTestPatientResponse {
   uid: string;
 }
 
-export async function addTestPatient(
-  body: AddTestPatientRequest,
-  adminKey?: string
-): Promise<AddTestPatientResponse> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
-  const response = await api.post<AddTestPatientResponse>(
-    "/api/v1/test-data/patients/add",
-    body,
-    { headers }
-  );
+export async function addTestPatient(body: AddTestPatientRequest): Promise<AddTestPatientResponse> {
+  const response = await api.post<AddTestPatientResponse>("/api/v1/test-data/patients/add", body);
   return response.data;
 }
 
@@ -357,56 +302,36 @@ export interface LookupPatientResponse {
   caregiver?: boolean;
 }
 
-export async function lookupTestPatient(
-  params: { id?: number; uid?: string; email?: string },
-  adminKey?: string
-): Promise<LookupPatientResponse> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
+export async function lookupTestPatient(params: {
+  id?: number;
+  uid?: string;
+  email?: string;
+}): Promise<LookupPatientResponse> {
   const searchParams = new URLSearchParams();
   if (params.id != null) searchParams.set("id", String(params.id));
   if (params.uid) searchParams.set("uid", params.uid);
   if (params.email) searchParams.set("email", params.email);
 
   const response = await api.get<LookupPatientResponse>(
-    `/api/v1/test-data/patients/lookup?${searchParams.toString()}`,
-    { headers }
+    `/api/v1/test-data/patients/lookup?${searchParams.toString()}`
   );
   return response.data;
 }
 
-export async function getRandomTestPatient(adminKey?: string): Promise<LookupPatientResponse> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
-  const response = await api.get<LookupPatientResponse>("/api/v1/test-data/patients/random", {
-    headers
-  });
+export async function getRandomTestPatient(): Promise<LookupPatientResponse> {
+  const response = await api.get<LookupPatientResponse>("/api/v1/test-data/patients/random");
   return response.data;
 }
 
 export async function updateTestPatient(
   id: number,
   body: LookupPatientResponse,
-  adminKey?: string,
   saveWithAudit?: boolean
 ): Promise<LookupPatientResponse> {
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers["X-Admin-Key"] = adminKey;
-  }
-
   const suffix = saveWithAudit ? "?saveWithAudit=true" : "";
   const response = await api.put<LookupPatientResponse>(
     `/api/v1/test-data/patients/${id}${suffix}`,
-    body,
-    { headers }
+    body
   );
   return response.data;
 }
-

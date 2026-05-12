@@ -62,6 +62,7 @@ jobs:
       TF_VAR_name_prefix: ${{ secrets.GCP_NAME_PREFIX }}
       TF_VAR_app_db_password: ${{ secrets.GCP_DB_PASSWORD }}
       TF_VAR_soap_report_password: ${{ secrets.SOAP_REPORT_PASSWORD }}
+      # AUTH_SETTINGS_ADMIN_KEY on Cloud Run; API also accepts X-Admin-Session JWTs (mint endpoint). Optional: ADMIN_SESSION_SIGNING_KEY / AdminSession__SigningKey on the service.
       TF_VAR_admin_key: ${{ secrets.AUTH_SETTINGS_ADMIN_KEY }}
       TF_VAR_ci_authorized_network_cidr: 0.0.0.0/0
       TF_VAR_cloud_run_invoker_member: allUsers

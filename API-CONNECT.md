@@ -21,9 +21,10 @@ The API supports three authentication modes, configured by the administrator. Yo
 |--------|--------------|
 | **None** | No authentication. Send requests without an `Authorization` header. |
 | **Bearer** | Single shared token. Send `Authorization: Bearer <token>` on every request. The token value is configured by the administrator. |
+| **CCAPIKey** | Shared secret. Send header `CCAPIKey: <secret>` on every request (same value the administrator configured as the API key). |
 | **OAuth** | Client credentials flow. Obtain an access token from the token endpoint, then send `Authorization: Bearer <access_token>` on every request. Use the refresh endpoint to get a new access token when it expires. |
 
-To discover the current mode (and, in Bearer mode, to obtain the token), an administrator can call the auth-settings endpoint with the admin key (see [Admin endpoints](#admin-endpoints) below). In development, if no admin key is set, auth-settings may be readable without a key.
+To discover the current mode (and, in Bearer mode, to obtain the token), an administrator can call the auth-settings endpoint with admin credentials (see [Admin endpoints](#admin-endpoints) below). In development, if no admin key is set, auth-settings may be readable without a session or key.
 
 ---
 
@@ -47,6 +48,19 @@ Host: your-api-host
 GET /api/v1/patients/1 HTTP/1.1
 Host: your-api-host
 Authorization: Bearer your-configured-bearer-token
+```
+
+---
+
+## Authenticating when mode is **CCAPIKey**
+
+1. Obtain the shared API key from the administrator (same value stored for CCAPIKey mode).
+2. Send it on every request to protected endpoints:
+
+```http
+GET /api/v1/patients/1 HTTP/1.1
+Host: your-api-host
+CCAPIKey: your-configured-api-key
 ```
 
 ---
@@ -117,11 +131,11 @@ Before the access token expires, exchange the refresh token for a new access tok
 
 ## Verifying credentials
 
-To confirm that your credentials are accepted (e.g. after obtaining an OAuth access token or when using a Bearer token), call:
+To confirm that your credentials are accepted (e.g. after obtaining an OAuth access token, when using a Bearer token, or when using CCAPIKey mode), call:
 
 **Endpoint:** `GET /api/v1/auth/verify`
 
-Send the same `Authorization: Bearer <token>` header you use for other protected endpoints. A **200 OK** with an empty body means authentication succeeded; **401 Unauthorized** means the token is missing or invalid.
+Send the same credentials you use for other protected endpoints (e.g. `Authorization: Bearer …` for Bearer/OAuth, or `CCAPIKey` header in CCAPIKey mode). A **200 OK** with an empty body means authentication succeeded; **401 Unauthorized** means the token or key is missing or invalid.
 
 ---
 
@@ -130,27 +144,76 @@ Send the same `Authorization: Bearer <token>` header you use for other protected
 | Area        | Path prefix            | Auth required | Notes |
 |------------|------------------------|----------------|--------|
 | Health     | `/api/v1/health`       | No             | GET; no auth. |
-| Auth       | `/api/v1/auth`         | No / Yes       | POST `/token`, POST `/refresh` (no auth). GET `/verify` requires auth; returns 200 if credentials are valid (useful to confirm Bearer or OAuth token). |
+| Auth       | `/api/v1/auth`         | No / Yes       | POST `/token`, POST `/refresh` (no auth). GET `/verify` requires auth; returns 200 if credentials are valid (useful to confirm Bearer, CCAPIKey, or OAuth token). |
 | Patients   | `/api/v1/patients`     | Yes*           | CRUD and sub-resources (devices, allergies, providers, etc.). *When mode is None, no auth. |
-| Auth settings | `/api/v1/auth-settings` | Admin key   | GET/PUT; requires `X-Admin-Key` if `AUTH_SETTINGS_ADMIN_KEY` is set. |
-| Monitoring | `/api/v1/monitoring`    | Admin key     | GET `/requests`, GET `/requests/{id}`, GET `/stats`; requires `X-Admin-Key` if `AUTH_SETTINGS_ADMIN_KEY` is set. |
+| Admin session | `/api/v1/admin/sessions` | No (mint)  | POST only; exchanges static admin key for JWT (see [Admin endpoints](#admin-endpoints)). |
+| Auth settings | `/api/v1/auth-settings` | Admin*   | GET/PUT; *requires `X-Admin-Key` or valid `X-Admin-Session` JWT if `AUTH_SETTINGS_ADMIN_KEY` is set. |
+| Monitoring | `/api/v1/monitoring`    | Admin*     | GET `/requests`, GET `/requests/{id}`, GET `/stats`; same admin headers when `AUTH_SETTINGS_ADMIN_KEY` is set. |
+| Test data  | `/api/v1/test-data`     | Admin*†    | Generate/reset/lookup test patients and related operations. *Same admin headers when key is set. †In `Development`, test-data routes skip admin checks (convenience for local workflows); use non-Development environments to enforce the key. |
 
 ---
 
 ## Admin endpoints
 
-These endpoints are for administration and monitoring. Access can be restricted with an admin key.
+These endpoints are for administration, monitoring, and synthetic data. When the server has **`AUTH_SETTINGS_ADMIN_KEY`** set, protected admin routes require **one** of:
 
-- **Auth settings**  
-  - `GET /api/v1/auth-settings` – current mode, token info (masked), OAuth client id (masked).  
-  - `PUT /api/v1/auth-settings` – update mode, bearer token, or OAuth client credentials.  
-  - If the server has `AUTH_SETTINGS_ADMIN_KEY` set, send: `X-Admin-Key: <admin-key>`.
+- **`X-Admin-Key: <AUTH_SETTINGS_ADMIN_KEY>`** — static shared secret (simple for scripts and `curl`).
+- **`X-Admin-Session: <jwt>`** — short-lived HS256 JWT returned by the mint endpoint below. Prefer this for interactive clients so the static key is not sent on every request. Use a **dedicated** header (not `Authorization`) so it does not collide with Bearer/OAuth API auth.
 
-- **Monitoring**  
-  - `GET /api/v1/monitoring/requests` – list recent API request logs.  
-  - `GET /api/v1/monitoring/requests/{id}` – request log detail.  
-  - `GET /api/v1/monitoring/stats` – aggregated stats (last 200 requests).  
-  - Same `X-Admin-Key` header when the admin key is configured.
+If **`AUTH_SETTINGS_ADMIN_KEY`** is **not** set, admin routes are open (typical local development).
+
+### Mint an admin session JWT
+
+**Endpoint:** `POST /api/v1/admin/sessions`  
+**Auth:** None (anonymous).  
+**Body (JSON):**
+
+```json
+{
+  "adminKey": "your-AUTH_SETTINGS_ADMIN_KEY-value"
+}
+```
+
+**Responses:**
+
+- **200 OK** — `{ "accessToken": "<jwt>", "expiresAtUtc": "<ISO-8601>" }`. Send `accessToken` as the value of `X-Admin-Session` on subsequent admin API calls until it expires.
+- **400 Bad Request** — `AUTH_SETTINGS_ADMIN_KEY` is not configured on the server (minting is disabled; admin routes may still be open).
+- **403 Forbidden** — wrong `adminKey`.
+
+JWT signing: prefer env **`ADMIN_SESSION_SIGNING_KEY`** (or config `AdminSession:SigningKey`) as the HS256 secret. If not set, the server derives key material from `AUTH_SETTINGS_ADMIN_KEY`. Lifetime is controlled by **`AdminSession:TtlMinutes`** / env **`AdminSession__TtlMinutes`** (default 30, clamped server-side).
+
+### Auth settings
+
+- `GET /api/v1/auth-settings` — current mode, token info (masked), OAuth client id (masked).  
+- `PUT /api/v1/auth-settings` — update mode, bearer token, CCAPIKey secret, or OAuth client credentials.  
+- When admin key is required: include **`X-Admin-Key`** or **`X-Admin-Session`** as above.
+
+### Monitoring
+
+- `GET /api/v1/monitoring/requests` — list recent API request logs.  
+- `GET /api/v1/monitoring/requests/{id}` — request log detail.  
+- `GET /api/v1/monitoring/stats` — aggregated stats.  
+- Same admin headers when `AUTH_SETTINGS_ADMIN_KEY` is set.
+
+### Test data
+
+- Prefix **`/api/v1/test-data/`** (e.g. patients generate/reset/stats, staff, audit events).  
+- When `AUTH_SETTINGS_ADMIN_KEY` is set, send the same admin headers as for auth settings **unless** the server runs in **`Development`**, in which case test-data endpoints skip admin validation for local convenience. Auth settings and monitoring **always** enforce the admin key when it is set.
+
+---
+
+## Example: mint admin session then call auth-settings (curl)
+
+```bash
+# Replace host and values
+MINT=$(curl -s -X POST "http://localhost:5001/api/v1/admin/sessions" \
+  -H "Content-Type: application/json" \
+  -d '{"adminKey":"your-admin-key"}')
+SESSION=$(echo "$MINT" | jq -r .accessToken)
+
+curl -s "http://localhost:5001/api/v1/auth-settings" \
+  -H "X-Admin-Session: $SESSION" | jq .
+```
 
 ---
 
@@ -179,8 +242,8 @@ curl -s -X POST "http://localhost:5001/api/v1/auth/refresh" \
 
 ## Errors
 
-- **401 Unauthorized** – Missing or invalid credentials (e.g. no/invalid Bearer token or OAuth access token).
-- **403 Forbidden** – Valid auth but not allowed (e.g. admin endpoint without correct `X-Admin-Key`).
+- **401 Unauthorized** – Missing or invalid credentials (e.g. no/invalid Bearer token, OAuth access token, or CCAPIKey header).
+- **403 Forbidden** – Valid API auth but not allowed (e.g. admin endpoint without correct `X-Admin-Key` / `X-Admin-Session`, wrong static admin key to mint, or expired or tampered session JWT).
 - **400 Bad Request** – Invalid request body or parameters (e.g. token/refresh requests with missing or wrong fields).
 
 When in doubt, check the response body for details. The API also exposes Swagger UI in development at `{baseUrl}/swagger` for interactive exploration.

@@ -15,11 +15,31 @@ import {
   addTestPatient,
   lookupTestPatient,
   getRandomTestPatient,
-  updateTestPatient
+  updateTestPatient,
+  exchangeAdminSession
 } from "./api";
+import { setAdminSession } from "./adminSessionStore";
 import { server } from "./test/server";
 
-// ---- getApiStatus ----
+const futureExpiry = () => new Date(Date.now() + 60 * 60 * 1000);
+
+describe("exchangeAdminSession", () => {
+  it("posts adminKey to mint endpoint and returns token payload", async () => {
+    const body = { accessToken: "jwt-here", expiresAtUtc: "2026-06-01T12:00:00.000Z" };
+    server.use(
+      http.post("*/api/v1/admin/sessions", async ({ request }) => {
+        expect(request.headers.get("X-Admin-Session")).toBeNull();
+        const json = (await request.json()) as { adminKey: string };
+        expect(json.adminKey).toBe("secret-key");
+        return HttpResponse.json(body);
+      })
+    );
+
+    const result = await exchangeAdminSession("secret-key");
+
+    expect(result).toEqual(body);
+  });
+});
 
 describe("getApiStatus", () => {
   it("returns string response from health endpoint", async () => {
@@ -61,21 +81,23 @@ describe("getAuthSettings", () => {
     expect(result).toEqual(settings);
   });
 
-  it("includes X-Admin-Key header when adminKey is provided", async () => {
+  it("includes X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("my-session-jwt", futureExpiry());
     server.use(
       http.get("*/api/v1/auth-settings", ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("my-admin-key");
+        expect(request.headers.get("X-Admin-Session")).toBe("my-session-jwt");
+        expect(request.headers.get("X-Admin-Key")).toBeNull();
         return HttpResponse.json(settings);
       })
     );
 
-    await getAuthSettings("my-admin-key");
+    await getAuthSettings();
   });
 
-  it("sends no X-Admin-Key header when adminKey is omitted", async () => {
+  it("sends no X-Admin-Session header when no session is stored", async () => {
     server.use(
       http.get("*/api/v1/auth-settings", ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBeNull();
+        expect(request.headers.get("X-Admin-Session")).toBeNull();
         return HttpResponse.json(settings);
       })
     );
@@ -93,7 +115,7 @@ describe("updateAuthSettings", () => {
   it("sends PUT to correct endpoint with payload", async () => {
     server.use(
       http.put("*/api/v1/auth-settings", async ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBeNull();
+        expect(request.headers.get("X-Admin-Session")).toBeNull();
         const body = await request.json();
         expect(body).toEqual(payload);
         return HttpResponse.json(returned);
@@ -105,17 +127,18 @@ describe("updateAuthSettings", () => {
     expect(result).toEqual(returned);
   });
 
-  it("includes X-Admin-Key header when provided", async () => {
+  it("includes X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("secret", futureExpiry());
     server.use(
       http.put("*/api/v1/auth-settings", async ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("secret");
+        expect(request.headers.get("X-Admin-Session")).toBe("secret");
         const body = await request.json();
         expect(body).toEqual(payload);
         return HttpResponse.json(returned);
       })
     );
 
-    await updateAuthSettings(payload, "secret");
+    await updateAuthSettings(payload);
   });
 });
 
@@ -137,7 +160,7 @@ describe("getMonitoredRequests", () => {
     server.use(
       http.get("*/api/v1/monitoring/requests", ({ request }) => {
         expect(new URL(request.url).search).toBe("");
-        expect(request.headers.get("X-Admin-Key")).toBeNull();
+        expect(request.headers.get("X-Admin-Session")).toBeNull();
         return HttpResponse.json(requests);
       })
     );
@@ -175,15 +198,16 @@ describe("getMonitoredRequests", () => {
     });
   });
 
-  it("includes X-Admin-Key header when provided", async () => {
+  it("includes X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("admin", futureExpiry());
     server.use(
       http.get("*/api/v1/monitoring/requests", ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("admin");
+        expect(request.headers.get("X-Admin-Session")).toBe("admin");
         return HttpResponse.json(requests);
       })
     );
 
-    await getMonitoredRequests({}, "admin");
+    await getMonitoredRequests({});
   });
 
   it("returns the response data array", async () => {
@@ -209,7 +233,7 @@ describe("getMonitoredRequest", () => {
     };
     server.use(
       http.get("*/api/v1/monitoring/requests/42", ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBeNull();
+        expect(request.headers.get("X-Admin-Session")).toBeNull();
         return HttpResponse.json(detail);
       })
     );
@@ -219,15 +243,16 @@ describe("getMonitoredRequest", () => {
     expect(result).toEqual(detail);
   });
 
-  it("sends X-Admin-Key header when provided", async () => {
+  it("sends X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("admin-secret", futureExpiry());
     server.use(
       http.get("*/api/v1/monitoring/requests/1", ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("admin-secret");
+        expect(request.headers.get("X-Admin-Session")).toBe("admin-secret");
         return HttpResponse.json({});
       })
     );
 
-    await getMonitoredRequest(1, "admin-secret");
+    await getMonitoredRequest(1);
   });
 });
 
@@ -243,7 +268,7 @@ describe("getMonitoringStats", () => {
   it("calls the stats endpoint and returns data", async () => {
     server.use(
       http.get("*/api/v1/monitoring/stats", ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBeNull();
+        expect(request.headers.get("X-Admin-Session")).toBeNull();
         return HttpResponse.json(stats);
       })
     );
@@ -253,15 +278,16 @@ describe("getMonitoringStats", () => {
     expect(result).toEqual(stats);
   });
 
-  it("sends X-Admin-Key header when provided", async () => {
+  it("sends X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("admin", futureExpiry());
     server.use(
       http.get("*/api/v1/monitoring/stats", ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("admin");
+        expect(request.headers.get("X-Admin-Session")).toBe("admin");
         return HttpResponse.json(stats);
       })
     );
 
-    await getMonitoringStats("admin");
+    await getMonitoringStats();
   });
 });
 
@@ -279,7 +305,7 @@ describe("generateTestPatients", () => {
   it("posts to the correct endpoint with options", async () => {
     server.use(
       http.post("*/api/v1/test-data/patients/generate", async ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBeNull();
+        expect(request.headers.get("X-Admin-Session")).toBeNull();
         const body = await request.json();
         expect(body).toEqual({ totalCount: 100, duplicatePercentage: 3, seed: 42 });
         return HttpResponse.json(result);
@@ -292,17 +318,18 @@ describe("generateTestPatients", () => {
     expect(returned).toEqual(result);
   });
 
-  it("sends X-Admin-Key header when provided", async () => {
+  it("sends X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("admin", futureExpiry());
     server.use(
       http.post("*/api/v1/test-data/patients/generate", async ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("admin");
+        expect(request.headers.get("X-Admin-Session")).toBe("admin");
         const body = await request.json();
         expect(body).toEqual({});
         return HttpResponse.json(result);
       })
     );
 
-    await generateTestPatients({}, "admin");
+    await generateTestPatients({});
   });
 });
 
@@ -325,15 +352,16 @@ describe("getPatientTestDataStats", () => {
     expect(result).toEqual(stats);
   });
 
-  it("sends X-Admin-Key header when provided", async () => {
+  it("sends X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("admin", futureExpiry());
     server.use(
       http.get("*/api/v1/test-data/patients/stats", ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("admin");
+        expect(request.headers.get("X-Admin-Session")).toBe("admin");
         return HttpResponse.json(stats);
       })
     );
 
-    await getPatientTestDataStats("admin");
+    await getPatientTestDataStats();
   });
 });
 
@@ -383,7 +411,7 @@ describe("resetTestPatients", () => {
   it("posts to the reset endpoint", async () => {
     server.use(
       http.post("*/api/v1/test-data/patients/reset", async ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBeNull();
+        expect(request.headers.get("X-Admin-Session")).toBeNull();
         const body = await request.json();
         expect(body).toEqual({});
         return new HttpResponse(null, { status: 204 });
@@ -393,17 +421,18 @@ describe("resetTestPatients", () => {
     await resetTestPatients();
   });
 
-  it("sends X-Admin-Key header when provided", async () => {
+  it("sends X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("admin", futureExpiry());
     server.use(
       http.post("*/api/v1/test-data/patients/reset", async ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("admin");
+        expect(request.headers.get("X-Admin-Session")).toBe("admin");
         const body = await request.json();
         expect(body).toEqual({});
         return new HttpResponse(null, { status: 204 });
       })
     );
 
-    await resetTestPatients("admin");
+    await resetTestPatients();
   });
 });
 
@@ -427,17 +456,18 @@ describe("addTestPatient", () => {
     expect(result).toEqual(response);
   });
 
-  it("sends X-Admin-Key header when provided", async () => {
+  it("sends X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("admin", futureExpiry());
     server.use(
       http.post("*/api/v1/test-data/patients/add", async ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("admin");
+        expect(request.headers.get("X-Admin-Session")).toBe("admin");
         const body = await request.json();
         expect(body).toEqual({ firstName: "A", lastName: "B", email: "a@b.com" });
         return HttpResponse.json(response);
       })
     );
 
-    await addTestPatient({ firstName: "A", lastName: "B", email: "a@b.com" }, "admin");
+    await addTestPatient({ firstName: "A", lastName: "B", email: "a@b.com" });
   });
 });
 
@@ -490,15 +520,16 @@ describe("lookupTestPatient", () => {
     expect(result).toEqual(patient);
   });
 
-  it("sends X-Admin-Key header when provided", async () => {
+  it("sends X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("admin", futureExpiry());
     server.use(
       http.get("*/api/v1/test-data/patients/lookup", ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("admin");
+        expect(request.headers.get("X-Admin-Session")).toBe("admin");
         return HttpResponse.json(patient);
       })
     );
 
-    await lookupTestPatient({ id: 1 }, "admin");
+    await lookupTestPatient({ id: 1 });
   });
 });
 
@@ -515,15 +546,16 @@ describe("getRandomTestPatient", () => {
     expect(result).toEqual(patient);
   });
 
-  it("sends X-Admin-Key header when provided", async () => {
+  it("sends X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("admin", futureExpiry());
     server.use(
       http.get("*/api/v1/test-data/patients/random", ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("admin");
+        expect(request.headers.get("X-Admin-Session")).toBe("admin");
         return HttpResponse.json({});
       })
     );
 
-    await getRandomTestPatient("admin");
+    await getRandomTestPatient();
   });
 });
 
@@ -559,7 +591,7 @@ describe("updateTestPatient", () => {
       })
     );
 
-    await updateTestPatient(5, patientBody, undefined, true);
+    await updateTestPatient(5, patientBody, true);
   });
 
   it("does not append saveWithAudit param when flag is false", async () => {
@@ -570,17 +602,18 @@ describe("updateTestPatient", () => {
       })
     );
 
-    await updateTestPatient(5, patientBody, undefined, false);
+    await updateTestPatient(5, patientBody, false);
   });
 
-  it("sends X-Admin-Key header when provided", async () => {
+  it("sends X-Admin-Session header when an admin session is stored", async () => {
+    setAdminSession("admin-key", futureExpiry());
     server.use(
       http.put("*/api/v1/test-data/patients/5", async ({ request }) => {
-        expect(request.headers.get("X-Admin-Key")).toBe("admin-key");
+        expect(request.headers.get("X-Admin-Session")).toBe("admin-key");
         return HttpResponse.json(returned);
       })
     );
 
-    await updateTestPatient(5, patientBody, "admin-key");
+    await updateTestPatient(5, patientBody);
   });
 });

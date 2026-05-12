@@ -122,7 +122,7 @@ variable "soap_report_password" {
 variable "admin_key" {
   type        = string
   sensitive   = true
-  description = "X-Admin-Key value for admin endpoints (AUTH_SETTINGS_ADMIN_KEY)."
+  description = "Static admin secret for AUTH_SETTINGS_ADMIN_KEY. Clients may send it as X-Admin-Key or exchange it for a short-lived JWT (X-Admin-Session) via POST /api/v1/admin/sessions. Optional separate JWT signing secret: set ADMIN_SESSION_SIGNING_KEY or AdminSession__SigningKey on the service if not using Terraform env blocks."
 }
 
 variable "frontend_url" {

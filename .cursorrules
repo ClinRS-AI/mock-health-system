@@ -68,6 +68,7 @@
   - Implement JWT authentication for stateless API authentication.
   - Use HTTPS and enforce SSL.
   - Implement proper CORS policies.
+  - Admin JSON routes (auth-settings, monitoring, test-data): when `AUTH_SETTINGS_ADMIN_KEY` is set, accept `X-Admin-Key` or a valid `X-Admin-Session` JWT from `POST /api/v1/admin/sessions`. Session TTL: `AdminSession__TtlMinutes` / `AdminSession:TtlMinutes`. JWT signing: prefer `ADMIN_SESSION_SIGNING_KEY` or `AdminSession__SigningKey`.
 
   ## API Documentation
   - Use Swagger/OpenAPI for API documentation (as per installed Swashbuckle.AspNetCore package).

@@ -7,6 +7,8 @@ import type {
   MonitoringStats
 } from "./api";
 import { getMonitoredRequest, getMonitoredRequests, getMonitoringStats } from "./api";
+import AdminSessionBanner from "./AdminSessionBanner";
+import { useAdminSession } from "./AdminSessionContext";
 
 const initialParams: GetMonitoredRequestsParams = {
   take: 100
@@ -34,8 +36,8 @@ function statusColorHex(statusCode: number): string {
 }
 
 const MonitoringPage: React.FC = () => {
-  const [adminKey, setAdminKey] = useState("");
-  const [params, setParams] = useState<GetMonitoredRequestsParams>(initialParams);
+  const { hasSession } = useAdminSession();
+  const [params] = useState<GetMonitoredRequestsParams>(initialParams);
   const [items, setItems] = useState<MonitoredRequestSummary[]>([]);
   const [stats, setStats] = useState<MonitoringStats | null>(null);
   const [details, setDetails] = useState<Record<number, MonitoredRequestDetail | null>>({});
@@ -47,22 +49,21 @@ const MonitoringPage: React.FC = () => {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hasSession]);
 
   async function load() {
     try {
       setLoading(true);
       setError(null);
-      const key = adminKey || undefined;
       const [data, statsData] = await Promise.all([
-        getMonitoredRequests(params, key),
-        getMonitoringStats(key)
+        getMonitoredRequests(params),
+        getMonitoringStats()
       ]);
       setItems(data);
       setStats(statsData);
     } catch (err) {
       console.error(err);
-      setError("Unable to load monitored requests. Check the admin key and backend.");
+      setError("Unable to load monitored requests. Use Admin access if the server requires an admin key.");
     } finally {
       setLoading(false);
     }
@@ -77,7 +78,7 @@ const MonitoringPage: React.FC = () => {
 
     try {
       setLoadingDetailId(id);
-      const detail = await getMonitoredRequest(id, adminKey || undefined);
+      const detail = await getMonitoredRequest(id);
       setDetails((prev) => ({ ...prev, [id]: detail }));
     } catch (err) {
       console.error(err);
@@ -102,6 +103,8 @@ const MonitoringPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      <AdminSessionBanner />
+
       <section className="space-y-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -121,16 +124,6 @@ const MonitoringPage: React.FC = () => {
               {loading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <input
-            type="password"
-            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-            placeholder="Admin key (optional in local dev)"
-            value={adminKey}
-            onChange={(e) => setAdminKey(e.target.value)}
-          />
         </div>
       </section>
 
