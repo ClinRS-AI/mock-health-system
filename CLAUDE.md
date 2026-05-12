@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A lightweight mock healthcare API and admin frontend for development and integration testing. The backend exposes a realistic health domain (patients, conditions, medications, procedures) with configurable authentication modes. The frontend is an admin UI for managing auth settings, viewing request logs, and generating synthetic patient data.
+A lightweight mock healthcare API and admin frontend for development and integration testing. The backend exposes a realistic health domain (patients, conditions, medications, procedures) with configurable authentication modes. The frontend is an admin UI for signing in with the static admin key (minting a short-lived session JWT), managing auth settings, viewing request logs, and generating synthetic patient data.
 
 ## Commands
 
@@ -54,22 +54,25 @@ npm run test:watch
 
 Three projects in `MockHealthSystem.sln`:
 
-- **MockHealthSystem.Api** — ASP.NET Core host. Controllers (all versioned under `/api/v1/`), middleware, DI setup in `Program.cs`, and `Services/` (auth settings, patient faker, patient mapping).
+- **MockHealthSystem.Api** — ASP.NET Core host. Controllers (all versioned under `/api/v1/`), middleware, DI setup in `Program.cs`, and `Services/` (auth settings, admin session JWT mint/validate, patient faker, patient mapping).
 - **MockHealthSystem.Infrastructure** — EF Core `AppDbContext` with 40+ DbSets, all domain entities in `Data/Entities/`, and migrations.
 - **MockHealthSystem.Tests** — Integration tests via `WebApplicationFactory` with an in-memory EF database. No PostgreSQL required for tests.
 
-**Authentication** lives in `Api/Authentication/MockAuthHandler.cs`. Three modes stored in the database (`AuthSettings` entity) and cached in-memory: `None`, `Bearer` (single shared token), and `OAuth` (client credentials + refresh). Admin endpoints are additionally protected by the `X-Admin-Key` header (env: `AUTH_SETTINGS_ADMIN_KEY`).
+**Authentication** lives in `Api/Authentication/MockAuthHandler.cs`. Modes stored in the database (`AuthSettings` entity) and cached in-memory include `None`, `Bearer` (single shared token), `CCAPIKey` (shared secret sent as the `CCAPIKey` header), and `OAuth` (client credentials + refresh).
+
+**Admin API access** (auth settings, monitoring, test data): If `AUTH_SETTINGS_ADMIN_KEY` is unset, admin routes are open (local dev). If set, clients must send either legacy header `X-Admin-Key: <same value>` or a valid HS256 JWT in `X-Admin-Session` (minted by `POST /api/v1/admin/sessions` with JSON body `{ "adminKey": "..." }`). Signing material: prefer env `ADMIN_SESSION_SIGNING_KEY` (or `AdminSession:SigningKey` in config); if omitted, a key is derived from `AUTH_SETTINGS_ADMIN_KEY`. Session TTL: `AdminSession:TtlMinutes` in config or env `AdminSession__TtlMinutes` (see `appsettings.json` / `AdminSessionOptions`). **Test data** endpoints additionally skip admin checks when `ASPNETCORE_ENVIRONMENT` is `Development` (`TestDataController` passes `bypassAdminChecksInDevelopment: true`); **auth settings** and **monitoring** do not bypass.
 
 **Request logging** — `RequestLoggingMiddleware` records every API call into `ApiRequestLog`. The `/api/v1/monitoring/*` endpoints expose these logs and stats.
 
 ### Frontend
 
-Single-page app. `App.tsx` renders four tab pages:
+Single-page app wrapped in `AdminSessionProvider` (`AdminSessionContext.tsx`). `App.tsx` renders tabbed views including:
+- `AdminAccessPage` — enter static admin key once; mints session via `exchangeAdminSession`; stores JWT in `sessionStorage` (`adminSessionStore.ts`)
 - `AuthSettingsPage` — configure auth mode and tokens
 - `MonitoringPage` — view request logs and stats
 - `TestDataPage` — generate/reset/look up synthetic patients
 
-All API calls go through `src/api.ts` (Axios client, typed). Backend URL is set via `VITE_API_BASE_URL` in `frontend/.env`.
+All API calls go through `src/api.ts` (Axios client, typed). A request interceptor on the main client adds `X-Admin-Session` when a non-expired token exists; `mintApi` is used for the mint endpoint so the session header is not sent there. Backend URL is set via `VITE_API_BASE_URL` in `frontend/.env`.
 
 ## EF Core Migration Gotchas
 

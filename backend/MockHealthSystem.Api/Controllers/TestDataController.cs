@@ -13,7 +13,8 @@ namespace MockHealthSystem.Api.Controllers;
 
 /// <summary>
 /// Endpoints for generating and resetting patient test data (including near-duplicates).
-/// Protected by the AUTH_SETTINGS_ADMIN_KEY / X-Admin-Key mechanism.
+/// When <c>AUTH_SETTINGS_ADMIN_KEY</c> is set, requires <c>X-Admin-Key</c> or valid <c>X-Admin-Session</c> JWT
+/// unless <c>ASPNETCORE_ENVIRONMENT</c> is Development (admin checks bypassed for local convenience on this controller only).
 /// </summary>
 [ApiController]
 [ApiVersion("1.0")]
