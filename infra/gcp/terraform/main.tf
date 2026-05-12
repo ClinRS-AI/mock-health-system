@@ -1,3 +1,12 @@
+moved {
+  from = google_cloud_run_v2_service_iam_member.invoker
+  to   = google_cloud_run_v2_service_iam_member.invoker_no_public_tag
+}
+
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
 locals {
   sql_instance_name = "${var.name_prefix}-sql"
   api_service_name  = "${var.name_prefix}-api"
@@ -13,6 +22,12 @@ locals {
   )
   db_connection_string = "Host=${google_sql_database_instance.main.public_ip_address};Port=5432;Database=${google_sql_database.app.name};Username=${google_sql_user.app.name};Password=${var.app_db_password};SSL Mode=Require;Trust Server Certificate=true;Include Error Detail=true"
   cloud_run_connection_string = "Host=/cloudsql/${google_sql_database_instance.main.connection_name};Port=5432;Database=${google_sql_database.app.name};Username=${google_sql_user.app.name};Password=${var.app_db_password};Include Error Detail=true"
+  # When org policy restricts principals (e.g. iam.allowedPolicyMemberDomains), bind a tag value
+  # that your conditional org policy exempts, then grant run.invoker to allUsers.
+  create_public_invoker_tag_binding = (
+    trimspace(var.cloud_run_invoker_member) != "" &&
+    trimspace(var.cloud_run_public_invoker_tag_value) != ""
+  )
 }
 
 resource "google_sql_database_instance" "main" {
@@ -197,10 +212,40 @@ resource "google_cloud_run_v2_service" "api" {
   ]
 }
 
-resource "google_cloud_run_v2_service_iam_member" "invoker" {
-  count    = var.cloud_run_invoker_member != "" ? 1 : 0
+# Binds a Resource Manager tag to the regional Cloud Run service parent so a conditional
+# org policy (e.g. on iam.allowedPolicyMemberDomains) can allow allUsers only for tagged services.
+# Create the tag key/value and conditional policy in the org/project first; pass tagValues/{id} or
+# the namespaced value id here. The deploy principal needs tagBindings permissions on this parent.
+resource "google_tags_location_tag_binding" "api_public_invoker" {
+  count = local.create_public_invoker_tag_binding ? 1 : 0
+
+  parent   = "//run.googleapis.com/projects/${data.google_project.current.number}/locations/${var.region}/services/${google_cloud_run_v2_service.api.name}"
+  tag_value = trimspace(var.cloud_run_public_invoker_tag_value)
+  location  = var.region
+
+  depends_on = [google_cloud_run_v2_service.api]
+}
+
+# Split so depends_on stays static (Terraform does not allow dynamic concat() here).
+resource "google_cloud_run_v2_service_iam_member" "invoker_after_public_tag" {
+  count    = var.cloud_run_invoker_member != "" && local.create_public_invoker_tag_binding ? 1 : 0
   name     = google_cloud_run_v2_service.api.name
   location = google_cloud_run_v2_service.api.location
   role     = "roles/run.invoker"
   member   = var.cloud_run_invoker_member
+
+  depends_on = [
+    google_cloud_run_v2_service.api,
+    google_tags_location_tag_binding.api_public_invoker[0],
+  ]
+}
+
+resource "google_cloud_run_v2_service_iam_member" "invoker_no_public_tag" {
+  count    = var.cloud_run_invoker_member != "" && !local.create_public_invoker_tag_binding ? 1 : 0
+  name     = google_cloud_run_v2_service.api.name
+  location = google_cloud_run_v2_service.api.location
+  role     = "roles/run.invoker"
+  member   = var.cloud_run_invoker_member
+
+  depends_on = [google_cloud_run_v2_service.api]
 }

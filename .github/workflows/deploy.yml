@@ -65,6 +65,8 @@ jobs:
       TF_VAR_admin_key: ${{ secrets.AUTH_SETTINGS_ADMIN_KEY }}
       TF_VAR_ci_authorized_network_cidr: 0.0.0.0/0
       TF_VAR_cloud_run_invoker_member: allUsers
+      # Optional: tagValues/... or namespaced tag value when org policy requires a tag for allUsers.
+      TF_VAR_cloud_run_public_invoker_tag_value: ${{ secrets.GCP_PUBLIC_INVOKER_TAG_VALUE }}
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
       RENDER_OWNER_ID: ${{ secrets.RENDER_OWNER_ID }}
       RENDER_FRONTEND_SERVICE_ID: ${{ secrets.RENDER_FRONTEND_SERVICE_ID }}
@@ -152,7 +154,10 @@ jobs:
 
       - name: Smoke test API
         run: |
-          curl --fail --silent --show-error "${{ steps.outputs.outputs.api_url }}/"
+          # New revision may still be applying EF migrations (503) or warming up; retry 5xx/503.
+          curl --fail --silent --show-error \
+            --retry 20 --retry-delay 5 --retry-all-errors \
+            "${{ steps.outputs.outputs.api_url }}/"
 
       - name: Smoke test frontend
         env:

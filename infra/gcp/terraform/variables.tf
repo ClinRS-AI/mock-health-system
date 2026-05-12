@@ -136,3 +136,16 @@ variable "cloud_run_invoker_member" {
   description = "IAM member granted roles/run.invoker on the Cloud Run service."
   default     = "allUsers"
 }
+
+variable "cloud_run_public_invoker_tag_value" {
+  type        = string
+  description = <<-EOT
+    Optional Resource Manager tag value to bind to the Cloud Run service before granting
+    cloud_run_invoker_member (e.g. allUsers). Use when organization policy iam.allowedPolicyMemberDomains
+    blocks public principals unless the service is tagged: set to tagValues/{numeric_id} or the
+    namespaced tag value string from gcloud resource-manager tags values list. Leave empty if
+    public invoker is allowed without a tag. Requires a matching conditional org policy that
+    exempts resources with this tag.
+  EOT
+  default     = ""
+}

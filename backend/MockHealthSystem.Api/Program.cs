@@ -147,8 +147,36 @@ if (!string.IsNullOrWhiteSpace(urls))
 
 var app = builder.Build();
 
+// When migrations run after the server starts listening (Cloud Run startup), block HTTP traffic
+// until MigrateAsync completes so auth/DB middleware never hits a half-migrated schema.
+var deferDatabaseUntilMigrated =
+    !app.Environment.IsEnvironment("Testing") &&
+    string.Equals(Environment.GetEnvironmentVariable("APPLY_EFMIGRATIONS_ON_STARTUP"), "true", StringComparison.OrdinalIgnoreCase);
+
+var startupDatabaseReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+if (!deferDatabaseUntilMigrated)
+{
+    startupDatabaseReady.TrySetResult();
+}
+
 // Global exception handling (log and return consistent error response)
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+if (deferDatabaseUntilMigrated)
+{
+    app.Use(async (context, next) =>
+    {
+        if (!startupDatabaseReady.Task.IsCompletedSuccessfully)
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            context.Response.Headers.RetryAfter = "5";
+            await context.Response.WriteAsync("Database migrations in progress.", context.RequestAborted);
+            return;
+        }
+
+        await next(context);
+    });
+}
 
 if (app.Environment.IsProduction())
 {
@@ -183,17 +211,18 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 
-// Root health for backward compatibility
-app.MapGet("/", () => Results.Ok("Mock Health System API is running."));
+// Root health for backward compatibility (explicit opt-out of fallback authorization)
+app.MapGet("/", () => Results.Ok("Mock Health System API is running.")).AllowAnonymous();
 
 // Start listening before EF migrations so Cloud Run's startup probe sees PORT open. Migrations can take longer than the startup timeout.
 await app.StartAsync();
 try
 {
-    if (string.Equals(Environment.GetEnvironmentVariable("APPLY_EFMIGRATIONS_ON_STARTUP"), "true", StringComparison.OrdinalIgnoreCase))
+    if (deferDatabaseUntilMigrated)
     {
         using var scope = app.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+        startupDatabaseReady.TrySetResult();
     }
 }
 catch
