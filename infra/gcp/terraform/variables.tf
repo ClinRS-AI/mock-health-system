@@ -131,6 +131,12 @@ variable "frontend_url" {
   default     = ""
 }
 
+variable "enable_swagger" {
+  type        = bool
+  description = "When true, sets ENABLE_SWAGGER on the Cloud Run API so /swagger is available in Production."
+  default     = false
+}
+
 variable "cloud_run_invoker_member" {
   type        = string
   description = "IAM member granted roles/run.invoker on the Cloud Run service."

@@ -202,7 +202,11 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-if (app.Environment.IsDevelopment())
+var enableSwagger =
+    app.Environment.IsDevelopment() ||
+    string.Equals(Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", StringComparison.OrdinalIgnoreCase);
+
+if (enableSwagger)
 {
     app.UseSwagger();
     app.UseSwaggerUI();

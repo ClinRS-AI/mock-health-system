@@ -23,6 +23,7 @@ set -euo pipefail
 #   TF_VAR_region
 #   TF_VAR_name_prefix
 #   TF_VAR_frontend_url
+#   TF_VAR_enable_swagger (default false; set GitHub repo variable ENABLE_SWAGGER=true to enable /swagger on Cloud Run)
 #   GCP_TERRAFORM_DIR   (default: infra/gcp/terraform)
 #   RENDER_TERRAFORM_DIR (default: infra/render/terraform)
 #   TF_STATE_PREFIX      (default: mock-health-system/gcp)

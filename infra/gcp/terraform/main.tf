@@ -175,6 +175,11 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
+        name  = "ENABLE_SWAGGER"
+        value = var.enable_swagger ? "true" : "false"
+      }
+
+      env {
         name = "SOAP_REPORT_PASSWORD"
         value_source {
           secret_key_ref {

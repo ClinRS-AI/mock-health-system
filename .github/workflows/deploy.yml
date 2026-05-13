@@ -68,6 +68,8 @@ jobs:
       TF_VAR_cloud_run_invoker_member: allUsers
       # Optional: tagValues/... or namespaced tag value when org policy requires a tag for allUsers.
       TF_VAR_cloud_run_public_invoker_tag_value: ${{ secrets.GCP_PUBLIC_INVOKER_TAG_VALUE }}
+      # Repository variable ENABLE_SWAGGER (set to "true" to expose /swagger on Cloud Run).
+      TF_VAR_enable_swagger: ${{ vars.ENABLE_SWAGGER == 'true' && 'true' || 'false' }}
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
       RENDER_OWNER_ID: ${{ secrets.RENDER_OWNER_ID }}
       RENDER_FRONTEND_SERVICE_ID: ${{ secrets.RENDER_FRONTEND_SERVICE_ID }}
