@@ -105,12 +105,18 @@ public sealed class MonitoringEndpointTests : IClassFixture<MockHealthSystemWebA
     }
 
     [Fact]
-    public async Task MonitoringEndpoints_Return200_WhenAdminKeyCorrect_IfConfigured()
+    public async Task MonitoringEndpoints_Return200_WhenAdminSessionValid_IfConfigured()
     {
         using var _ = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
         var client = _factory.CreateClient();
+
+        var mintResp = await client.PostAsJsonAsync("/api/v1/admin/sessions", new { adminKey = "test-admin-key" });
+        mintResp.EnsureSuccessStatusCode();
+        var mintBody = await mintResp.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionToken = mintBody.GetProperty("accessToken").GetString()!;
+
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/monitoring/requests");
-        request.Headers.Add("X-Admin-Key", "test-admin-key");
+        request.Headers.Add("X-Admin-Session", sessionToken);
 
         var response = await client.SendAsync(request);
 

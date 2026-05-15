@@ -2,7 +2,6 @@ namespace MockHealthSystem.Api.Services.AdminSession;
 
 public sealed class AdminRequestValidator : IAdminRequestValidator
 {
-    private const string AdminKeyHeader = "X-Admin-Key";
     private const string AdminSessionHeader = "X-Admin-Session";
 
     private readonly IAdminSessionJwtService _adminSessionJwt;
@@ -27,15 +26,6 @@ public sealed class AdminRequestValidator : IAdminRequestValidator
         if (string.IsNullOrWhiteSpace(requiredKey))
         {
             return true;
-        }
-
-        if (httpContext.Request.Headers.TryGetValue(AdminKeyHeader, out var keyHeader))
-        {
-            var provided = keyHeader.ToString();
-            if (string.Equals(provided, requiredKey, StringComparison.Ordinal))
-            {
-                return true;
-            }
         }
 
         if (httpContext.Request.Headers.TryGetValue(AdminSessionHeader, out var sessionHeader))

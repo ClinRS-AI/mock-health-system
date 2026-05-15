@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using MockHealthSystem.Api.Monitoring;
 using MockHealthSystem.Api.Models.Monitoring;
 using MockHealthSystem.Api.Services.AdminSession;
+using MockHealthSystem.Api.Swagger;
 using MockHealthSystem.Infrastructure.Data;
 
 namespace MockHealthSystem.Api.Controllers;
@@ -16,6 +17,7 @@ namespace MockHealthSystem.Api.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/monitoring")]
 [AllowAnonymous]
+[RequiresAdminAuth]
 public sealed class MonitoringController : ControllerBase
 {
     private readonly AppDbContext _db;

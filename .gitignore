@@ -15,6 +15,7 @@ dist/
 .vscode/
 .idea/
 *.swp
+*.lscache
 
 # .NET / backend (build output)
 bin/

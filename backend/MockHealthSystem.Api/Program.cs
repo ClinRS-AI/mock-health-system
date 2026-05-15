@@ -11,8 +11,12 @@ using MockHealthSystem.Api.Authentication;
 using MockHealthSystem.Api.Middleware;
 using MockHealthSystem.Api.Services;
 using MockHealthSystem.Api.Services.AdminSession;
+using MockHealthSystem.Api.Controllers;
 using MockHealthSystem.Api.Soap;
+using MockHealthSystem.Api.Swagger;
 using MockHealthSystem.Infrastructure.Data;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.OpenApi.Models;
 
 // Load backend/.env before building the host so ASPNETCORE_ENVIRONMENT is set for middleware (e.g. HTTPS redirect)
 try
@@ -40,11 +44,62 @@ builder.Configuration.AddEnvironmentVariables();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.SwaggerDoc("health-api", new OpenApiInfo
+    {
+        Title = "Mock Health System API",
+        Version = "v1",
+        Description = "External-facing mock healthcare API. Exposes patients, conditions, medications, procedures, and supporting reference data. Supports configurable authentication modes: None, Bearer, CCAPIKey, and OAuth (client credentials)."
+    });
+    options.SwaggerDoc("admin-api", new OpenApiInfo
+    {
+        Title = "Mock Health System — Admin API",
+        Version = "v1",
+        Description = "Internal administration endpoints for managing auth configuration, monitoring request logs, generating synthetic test data, and minting short-lived admin session tokens."
+    });
+
+    options.DocInclusionPredicate((docName, apiDesc) =>
+    {
+        if (apiDesc.ActionDescriptor is not ControllerActionDescriptor cad) return false;
+        var controller = cad.ControllerTypeInfo.AsType();
+        var isAdmin = controller == typeof(AdminSessionsController)
+                   || controller == typeof(AuthSettingsController)
+                   || controller == typeof(MonitoringController)
+                   || controller == typeof(TestDataController);
+        return docName == (isAdmin ? "admin-api" : "health-api");
+    });
+
     var xmlPath = Path.Combine(AppContext.BaseDirectory, $"{typeof(Program).Assembly.GetName().Name}.xml");
     if (File.Exists(xmlPath))
     {
         options.IncludeXmlComments(xmlPath);
     }
+
+    options.AddSecurityDefinition(SwaggerSecuritySchemeNames.Bearer, new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT or shared token",
+        Description = "Bearer or OAuth access token (when auth mode is Bearer or OAuth)."
+    });
+
+    options.AddSecurityDefinition(SwaggerSecuritySchemeNames.CcApiKey, new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Name = "CCAPIKey",
+        Description = "Shared API key when auth mode is CCAPIKey."
+    });
+
+    options.AddSecurityDefinition(SwaggerSecuritySchemeNames.AdminSession, new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Name = "X-Admin-Session",
+        Description = "Short-lived admin JWT from POST /api/v1/admin/sessions."
+    });
+
+    options.OperationFilter<SecurityRequirementsOperationFilter>();
+    options.DocumentFilter<DocumentSecuritySchemesFilter>();
 });
 builder.Services.AddApiVersioning(options =>
 {
@@ -209,7 +264,12 @@ var enableSwagger =
 if (enableSwagger)
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/health-api/swagger.json", "Mock Health System API");
+        options.SwaggerEndpoint("/swagger/admin-api/swagger.json", "Admin API");
+        options.EnablePersistAuthorization();
+    });
 }
 
 app.UseCors("Default");

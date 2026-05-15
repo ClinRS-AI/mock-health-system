@@ -60,12 +60,18 @@ public sealed class AuthSettingsEndpointTests : IClassFixture<IsolatedWebApplica
     }
 
     [Fact]
-    public async Task GetAuthSettings_Returns200_WhenAdminKeyCorrect_IfConfigured()
+    public async Task GetAuthSettings_Returns200_WhenAdminSessionValid_IfConfigured()
     {
         using var _ = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
         var client = _factory.CreateClient();
+
+        var mintResp = await client.PostAsJsonAsync("/api/v1/admin/sessions", new { adminKey = "test-admin-key" });
+        mintResp.EnsureSuccessStatusCode();
+        var mintBody = await mintResp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        var sessionToken = mintBody.GetProperty("accessToken").GetString()!;
+
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth-settings");
-        request.Headers.Add("X-Admin-Key", "test-admin-key");
+        request.Headers.Add("X-Admin-Session", sessionToken);
 
         var resp = await client.SendAsync(request);
 
@@ -133,15 +139,21 @@ public sealed class AuthSettingsEndpointTests : IClassFixture<IsolatedWebApplica
     }
 
     [Fact]
-    public async Task UpdateAuthSettings_Returns200_WhenAdminKeyCorrect_IfConfigured()
+    public async Task UpdateAuthSettings_Returns200_WhenAdminSessionValid_IfConfigured()
     {
         using var _ = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
         var client = _factory.CreateClient();
+
+        var mintResp = await client.PostAsJsonAsync("/api/v1/admin/sessions", new { adminKey = "test-admin-key" });
+        mintResp.EnsureSuccessStatusCode();
+        var mintBody = await mintResp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        var sessionToken = mintBody.GetProperty("accessToken").GetString()!;
+
         using var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/auth-settings")
         {
             Content = JsonContent.Create(new { mode = "None" })
         };
-        request.Headers.Add("X-Admin-Key", "test-admin-key");
+        request.Headers.Add("X-Admin-Session", sessionToken);
 
         var resp = await client.SendAsync(request);
 

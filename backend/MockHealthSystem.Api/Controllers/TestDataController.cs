@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using MockHealthSystem.Api.Models.Patients;
 using MockHealthSystem.Api.Services;
 using MockHealthSystem.Api.Services.AdminSession;
+using MockHealthSystem.Api.Swagger;
 using MockHealthSystem.Infrastructure.Data;
 using MockHealthSystem.Infrastructure.Data.Entities;
 
@@ -20,6 +21,7 @@ namespace MockHealthSystem.Api.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/test-data")]
 [AllowAnonymous]
+[RequiresAdminAuth]
 public sealed class TestDataController : ControllerBase
 {
     private readonly AppDbContext _db;

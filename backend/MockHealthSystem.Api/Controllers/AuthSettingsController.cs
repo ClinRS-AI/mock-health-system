@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using MockHealthSystem.Api.Models.Auth;
 using MockHealthSystem.Api.Services;
 using MockHealthSystem.Api.Services.AdminSession;
+using MockHealthSystem.Api.Swagger;
 using MockHealthSystem.Infrastructure.Data;
 
 namespace MockHealthSystem.Api.Controllers;
@@ -16,6 +17,7 @@ namespace MockHealthSystem.Api.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/auth-settings")]
 [AllowAnonymous]
+[RequiresAdminAuth]
 public sealed class AuthSettingsController : ControllerBase
 {
     private readonly AppDbContext _db;

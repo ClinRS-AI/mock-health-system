@@ -120,15 +120,21 @@ public sealed class TestDataManagementEndpointTests : IClassFixture<MockHealthSy
     }
 
     [Fact]
-    public async Task TestDataEndpoints_Return200_WhenAdminKeyCorrect_IfConfigured()
+    public async Task TestDataEndpoints_Return200_WhenAdminSessionValid_IfConfigured()
     {
         using var _ = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
         var client = _factory.CreateClient();
+
+        var mintResp = await client.PostAsJsonAsync("/api/v1/admin/sessions", new { adminKey = "test-admin-key" });
+        mintResp.EnsureSuccessStatusCode();
+        var mintBody = await mintResp.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionToken = mintBody.GetProperty("accessToken").GetString()!;
+
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/test-data/staff/generate")
         {
             Content = JsonContent.Create(new { count = 1, seed = 101 })
         };
-        request.Headers.Add("X-Admin-Key", "test-admin-key");
+        request.Headers.Add("X-Admin-Session", sessionToken);
 
         var response = await client.SendAsync(request);
 
@@ -147,7 +153,7 @@ public sealed class TestDataManagementEndpointTests : IClassFixture<MockHealthSy
     }
 
     [Fact]
-    public async Task GetSoapReportPkeys_ReturnsSortedPkeys_WhenAdminKeyCorrect()
+    public async Task GetSoapReportPkeys_ReturnsSortedPkeys_WhenAdminSessionValid()
     {
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
@@ -174,8 +180,14 @@ public sealed class TestDataManagementEndpointTests : IClassFixture<MockHealthSy
 
         using var env = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "test-admin-key");
         var client = _factory.CreateClient();
+
+        var mintResp = await client.PostAsJsonAsync("/api/v1/admin/sessions", new { adminKey = "test-admin-key" });
+        mintResp.EnsureSuccessStatusCode();
+        var mintBody = await mintResp.Content.ReadFromJsonAsync<JsonElement>();
+        var sessionToken = mintBody.GetProperty("accessToken").GetString()!;
+
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/test-data/soap/report-pkeys");
-        request.Headers.Add("X-Admin-Key", "test-admin-key");
+        request.Headers.Add("X-Admin-Session", sessionToken);
 
         var response = await client.SendAsync(request);
 
