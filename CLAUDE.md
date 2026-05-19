@@ -94,3 +94,8 @@ All API calls go through `src/api.ts` (Axios client, typed). A request intercept
 - All styling via Tailwind utility classes — no inline styles except for dynamic values.
 - API calls only from `api.ts`; components handle loading/error state from responses.
 - Test behavior and user-facing outcomes (React Testing Library), not implementation details.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
