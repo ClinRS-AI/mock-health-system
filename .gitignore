@@ -34,3 +34,6 @@ coverage/
 TestResults/
 TestResultsFullCoverage/
 
+# Claude Code — personal local settings only
+.claude/settings.local.json
+
