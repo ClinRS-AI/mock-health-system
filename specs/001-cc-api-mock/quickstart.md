@@ -25,7 +25,7 @@ cd mock-health-system
 **Backend config** (`backend/.env` — copy from `backend/.env.example`):
 ```env
 POSTGRES_CONNECTION_STRING=Host=localhost;Port=5432;Database=mockhealthsystem_db;Username=mockhealthsystem_user;Password=yourpassword
-BACKEND_URL=http://localhost:5000
+BACKEND_URL=http://localhost:5001
 FRONTEND_URL=http://localhost:5176
 
 # Optional — set to require admin key for admin routes:
@@ -37,7 +37,7 @@ SOAP_REPORT_PASSWORD=your-soap-password
 
 **Frontend config** (`frontend/.env` — copy from `frontend/.env.example`):
 ```env
-VITE_API_BASE_URL=http://localhost:5000
+VITE_API_BASE_URL=http://localhost:5001
 ```
 
 ---
@@ -65,12 +65,12 @@ dotnet ef database update \
 cd backend
 dotnet restore
 dotnet run --project MockHealthSystem.Api
-# → Listening on http://localhost:5000
+# → Listening on http://localhost:5001
 ```
 
 Verify it's running:
 ```bash
-curl http://localhost:5000/api/v1/health
+curl http://localhost:5001/api/v1/health
 # → Mock Health System API is running.
 ```
 
@@ -117,21 +117,21 @@ With CCAPIKey mode configured (key: `my-test-key`):
 
 ```bash
 # List patients (OData paged)
-curl http://localhost:5000/api/v1/patients/odata \
+curl http://localhost:5001/api/v1/patients/odata \
   -H "CCAPIKey: my-test-key"
 
 # Get a specific patient
-curl http://localhost:5000/api/v1/patients/1 \
+curl http://localhost:5001/api/v1/patients/1 \
   -H "CCAPIKey: my-test-key"
 
 # Search patients
-curl -X POST http://localhost:5000/api/v1/patients/search \
+curl -X POST http://localhost:5001/api/v1/patients/search \
   -H "CCAPIKey: my-test-key" \
   -H "Content-Type: application/json" \
   -d '{"name": "Smith"}'
 
 # Get patient conditions
-curl http://localhost:5000/api/v1/patients/1/conditions \
+curl http://localhost:5001/api/v1/patients/1/conditions \
   -H "CCAPIKey: my-test-key"
 ```
 
@@ -172,11 +172,11 @@ admin calls use a short-lived JWT (default 30 minutes).
 
 ```bash
 # List available report PKeys
-curl http://localhost:5000/api/v1/test-data/soap/report-pkeys \
+curl http://localhost:5001/api/v1/test-data/soap/report-pkeys \
   -H "X-Admin-Session: <your-admin-jwt>"
 
 # Call the SOAP endpoint
-curl -X POST http://localhost:5000/soap/report \
+curl -X POST http://localhost:5001/soap/report \
   -H "Content-Type: text/xml; charset=utf-8" \
   -H "SOAPAction: RunReport" \
   -d '<?xml version="1.0"?>

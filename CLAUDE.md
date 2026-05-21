@@ -13,7 +13,7 @@ A lightweight mock healthcare API and admin frontend for development and integra
 ```bash
 cd backend
 dotnet restore
-dotnet run --project MockHealthSystem.Api   # starts on http://localhost:5000
+dotnet run --project MockHealthSystem.Api   # starts on http://localhost:5001
 dotnet test                                  # run all tests
 ```
 
