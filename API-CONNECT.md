@@ -155,10 +155,9 @@ Send the same credentials you use for other protected endpoints (e.g. `Authoriza
 
 ## Admin endpoints
 
-These endpoints are for administration, monitoring, and synthetic data. When the server has **`AUTH_SETTINGS_ADMIN_KEY`** set, protected admin routes require **one** of:
+These endpoints are for administration, monitoring, and synthetic data. When the server has **`AUTH_SETTINGS_ADMIN_KEY`** set, protected admin routes require:
 
-- **`X-Admin-Key: <AUTH_SETTINGS_ADMIN_KEY>`** — static shared secret (simple for scripts and `curl`).
-- **`X-Admin-Session: <jwt>`** — short-lived HS256 JWT returned by the mint endpoint below. Prefer this for interactive clients so the static key is not sent on every request. Use a **dedicated** header (not `Authorization`) so it does not collide with Bearer/OAuth API auth.
+- **`X-Admin-Session: <jwt>`** — short-lived HS256 JWT returned by the mint endpoint below. Use a **dedicated** header (not `Authorization`) so it does not collide with Bearer/OAuth API auth. The raw admin key is **only** accepted at the mint endpoint — it cannot be sent directly on admin routes.
 
 If **`AUTH_SETTINGS_ADMIN_KEY`** is **not** set, admin routes are open (typical local development).
 

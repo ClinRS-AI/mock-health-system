@@ -21,17 +21,17 @@ This repository is a **lightweight mock health system** to develop against. It p
    - **Create the initial database and user** (once per environment): from the repo root run `backend/scripts/init-db.sh`. This creates the `mockhealthsystem_db` database and `mockhealthsystem_user` role using the password from `POSTGRES_CONNECTION_STRING`; it requires Postgres superuser access (e.g. `postgres`). See [Initial database setup](#initial-database-setup) below if you need to run `psql` manually or use `USE_SUDO_POSTGRES=1`.
    - Run `dotnet restore`.
    - **Migrations:** If you have pending model changes (e.g. new entities), add a migration first: `dotnet ef migrations add YourMigrationName --project MockHealthSystem.Infrastructure --startup-project MockHealthSystem.Api` (or use `backend/scripts/run-ef.sh migrations add YourMigrationName` from repo root). Then run `dotnet ef database update` (or `backend/scripts/run-ef.sh database update`) to apply.
-   - Start the API: `dotnet run --project MockHealthSystem.Api` (default: `http://localhost:5000`).
+   - Start the API: `dotnet run --project MockHealthSystem.Api` (default: `http://localhost:5001`).
 
 3. **Frontend setup**
    - `cd frontend`
    - Copy `.env.example` to `.env` or `.env.local`.
-   - Set `VITE_API_BASE_URL` to your backend URL (e.g. `http://localhost:5000`).
+   - Set `VITE_API_BASE_URL` to your backend URL (e.g. `http://localhost:5001`).
    - Run `npm install`.
    - Start the dev server: `npm run dev` (default: `http://localhost:5176`).
 
 4. **Verify**  
-   Open the frontend in your browser; use **Check API status** to confirm the API is reachable. If the server has `AUTH_SETTINGS_ADMIN_KEY` set, open **Admin access**, enter the key, and sign in so **Authentication settings**, **Monitoring**, and **Test data** can call the API (session JWT is stored in the browser tab’s `sessionStorage`).
+   Open the frontend in your browser; use **Check API status** to confirm the API is reachable. If the server has `AUTH_SETTINGS_ADMIN_KEY` set, open **Admin access**, enter the key, and sign in so **Authentication settings**, **Monitoring**, and **Test data management** can call the API (session JWT is stored in the browser tab’s `sessionStorage`).
 
 ---
 
@@ -42,8 +42,8 @@ This repository is a **lightweight mock health system** to develop against. It p
 
 ### Configuration reference
 
-- **Backend** (`backend/.env`): `POSTGRES_CONNECTION_STRING`, `BACKEND_URL` (default `http://localhost:5000`), `FRONTEND_URL` (default `http://localhost:5176`), `SOAP_REPORT_PASSWORD` (required for SOAP report endpoint). Optional **`AUTH_SETTINGS_ADMIN_KEY`** — when set, admin JSON APIs require `X-Admin-Key` or a short-lived JWT in **`X-Admin-Session`** (minted via `POST /api/v1/admin/sessions` with body `{ "adminKey": "..." }`). Optional **`ADMIN_SESSION_SIGNING_KEY`** — dedicated HS256 secret for those JWTs (if unset, a key is derived from `AUTH_SETTINGS_ADMIN_KEY` when that is set). Session lifetime: **`AdminSession__TtlMinutes`** (environment) or `AdminSession:TtlMinutes` in `appsettings.json` (default 30). Also uses `appsettings.json` and system environment variables.
-- **Frontend** (`frontend/.env` or `.env.local`): `VITE_API_BASE_URL` (e.g. `http://localhost:5000`).
+- **Backend** (`backend/.env`): `POSTGRES_CONNECTION_STRING`, `BACKEND_URL` (default `http://localhost:5001`), `FRONTEND_URL` (default `http://localhost:5176`), `SOAP_REPORT_PASSWORD` (required for SOAP report endpoint). Optional **`AUTH_SETTINGS_ADMIN_KEY`** — when set, admin routes require a valid HS256 JWT in **`X-Admin-Session`** (minted via `POST /api/v1/admin/sessions` with body `{ "adminKey": "..." }`; the raw key is only accepted at that mint endpoint). Optional **`ADMIN_SESSION_SIGNING_KEY`** — dedicated HS256 secret for those JWTs (if unset, a key is derived from `AUTH_SETTINGS_ADMIN_KEY` when that is set). Session lifetime: **`AdminSession__TtlMinutes`** (environment) or `AdminSession:TtlMinutes` in `appsettings.json` (default 30). Also uses `appsettings.json` and system environment variables.
+- **Frontend** (`frontend/.env` or `.env.local`): `VITE_API_BASE_URL` (e.g. `http://localhost:5001`).
 
 ### Initial database setup
 

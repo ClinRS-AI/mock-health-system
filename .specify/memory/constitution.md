@@ -1,16 +1,14 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.0 → 1.1.0 (MINOR: 5 new principles added; III expanded)
-Modified principles:
-  - III. Integration-First Testing → expanded to include actual tooling (xUnit,
-    IsolatedWebApplicationFactory, Vitest, RTL, MSW, auth-matrix coverage)
-Added principles:
-  - VI. Code Quality
-  - VII. Testing Standards
-  - VIII. User Experience Consistency
-  - IX. Security
-  - X. Performance
+Version change: 1.1.0 → 1.1.1 (PATCH: documentation sync requirement added to Development Workflow and Code Review)
+Modified principles: none
+Added principles: none
+Workflow changes:
+  - Development Workflow: added "Documentation sync" bullet requiring README.md
+    and API-CONNECT.md to be updated after any feature that affects setup,
+    config, auth, routes, or frontend tab structure.
+  - Code review: added README.md / API-CONNECT.md accuracy check to reviewer checklist.
 Removed principles: none
 Added sections: none
 Removed sections: none
@@ -218,11 +216,18 @@ suites running at volume.
 - **Frontend**: Run via `npm run dev` from `frontend/`. Strict TypeScript — `any`
   is off-limits. Styling via Tailwind utility classes only; no inline styles except
   for dynamic values. All API calls MUST be centralized in `src/api.ts`.
+- **Documentation sync**: After implementing any feature, the implementer MUST
+  review `README.md` and `API-CONNECT.md` and update them if the feature changes
+  setup steps, configuration options, authentication behaviour, admin routes,
+  endpoint contracts, or the frontend tab structure. These files are the primary
+  reference for developers onboarding and for integration clients connecting to the
+  API — they MUST stay accurate as the codebase evolves.
 - **Branching**: Feature work on named branches; PRs required for changes to
   `main`. CI MUST pass before merge.
 - **Code review**: Reviewers MUST verify constitution compliance — PHI-free data,
   versioned routes, no swallowed exceptions, no committed secrets, auth-matrix
-  test coverage for any new protected endpoint.
+  test coverage for any new protected endpoint, and that `README.md` /
+  `API-CONNECT.md` reflect any user-facing changes introduced by the PR.
 
 ## Governance
 
@@ -245,4 +250,4 @@ immediately upon merge of the amending PR.
 **Runtime guidance**: See `CLAUDE.md` for agent-specific development commands,
 EF migration gotchas, authentication flow details, and project conventions.
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-18 | **Last Amended**: 2026-05-19
+**Version**: 1.1.1 | **Ratified**: 2026-05-18 | **Last Amended**: 2026-05-21
