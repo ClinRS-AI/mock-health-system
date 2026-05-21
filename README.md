@@ -31,7 +31,7 @@ This repository is a **lightweight mock health system** to develop against. It p
    - Start the dev server: `npm run dev` (default: `http://localhost:5176`).
 
 4. **Verify**  
-   Open the frontend in your browser; use **Check API status** to confirm the API is reachable. If the server has `AUTH_SETTINGS_ADMIN_KEY` set, open **Admin access**, enter the key, and sign in so **Authentication settings**, **Monitoring**, and **Test data** can call the API (session JWT is stored in the browser tab’s `sessionStorage`).
+   Open the frontend in your browser; use **Check API status** to confirm the API is reachable. If the server has `AUTH_SETTINGS_ADMIN_KEY` set, open **Admin access**, enter the key, and sign in so **Authentication settings**, **Monitoring**, and **Test data management** can call the API (session JWT is stored in the browser tab’s `sessionStorage`).
 
 ---
 
@@ -42,7 +42,7 @@ This repository is a **lightweight mock health system** to develop against. It p
 
 ### Configuration reference
 
-- **Backend** (`backend/.env`): `POSTGRES_CONNECTION_STRING`, `BACKEND_URL` (default `http://localhost:5000`), `FRONTEND_URL` (default `http://localhost:5176`), `SOAP_REPORT_PASSWORD` (required for SOAP report endpoint). Optional **`AUTH_SETTINGS_ADMIN_KEY`** — when set, admin JSON APIs require `X-Admin-Key` or a short-lived JWT in **`X-Admin-Session`** (minted via `POST /api/v1/admin/sessions` with body `{ "adminKey": "..." }`). Optional **`ADMIN_SESSION_SIGNING_KEY`** — dedicated HS256 secret for those JWTs (if unset, a key is derived from `AUTH_SETTINGS_ADMIN_KEY` when that is set). Session lifetime: **`AdminSession__TtlMinutes`** (environment) or `AdminSession:TtlMinutes` in `appsettings.json` (default 30). Also uses `appsettings.json` and system environment variables.
+- **Backend** (`backend/.env`): `POSTGRES_CONNECTION_STRING`, `BACKEND_URL` (default `http://localhost:5000`), `FRONTEND_URL` (default `http://localhost:5176`), `SOAP_REPORT_PASSWORD` (required for SOAP report endpoint). Optional **`AUTH_SETTINGS_ADMIN_KEY`** — when set, admin routes require a valid HS256 JWT in **`X-Admin-Session`** (minted via `POST /api/v1/admin/sessions` with body `{ "adminKey": "..." }`; the raw key is only accepted at that mint endpoint). Optional **`ADMIN_SESSION_SIGNING_KEY`** — dedicated HS256 secret for those JWTs (if unset, a key is derived from `AUTH_SETTINGS_ADMIN_KEY` when that is set). Session lifetime: **`AdminSession__TtlMinutes`** (environment) or `AdminSession:TtlMinutes` in `appsettings.json` (default 30). Also uses `appsettings.json` and system environment variables.
 - **Frontend** (`frontend/.env` or `.env.local`): `VITE_API_BASE_URL` (e.g. `http://localhost:5000`).
 
 ### Initial database setup

@@ -6,10 +6,10 @@ This guide describes how other systems should connect to the Mock Health System 
 
 ## Base URL and versioning
 
-- **Base URL**: Use the URL where the API is running (e.g. `http://localhost:5001` in development, or your deployed host).
+- **Base URL**: Use the URL where the API is running (e.g. `http://localhost:5000` in development, or your deployed host).
 - **Versioning**: All API routes are versioned. Use the `v1` prefix:
   - Base path: `{baseUrl}/api/v1/`
-  - Example: `http://localhost:5001/api/v1/health`
+  - Example: `http://localhost:5000/api/v1/health`
 
 ---
 
@@ -155,10 +155,9 @@ Send the same credentials you use for other protected endpoints (e.g. `Authoriza
 
 ## Admin endpoints
 
-These endpoints are for administration, monitoring, and synthetic data. When the server has **`AUTH_SETTINGS_ADMIN_KEY`** set, protected admin routes require **one** of:
+These endpoints are for administration, monitoring, and synthetic data. When the server has **`AUTH_SETTINGS_ADMIN_KEY`** set, protected admin routes require:
 
-- **`X-Admin-Key: <AUTH_SETTINGS_ADMIN_KEY>`** — static shared secret (simple for scripts and `curl`).
-- **`X-Admin-Session: <jwt>`** — short-lived HS256 JWT returned by the mint endpoint below. Prefer this for interactive clients so the static key is not sent on every request. Use a **dedicated** header (not `Authorization`) so it does not collide with Bearer/OAuth API auth.
+- **`X-Admin-Session: <jwt>`** — short-lived HS256 JWT returned by the mint endpoint below. Use a **dedicated** header (not `Authorization`) so it does not collide with Bearer/OAuth API auth. The raw admin key is **only** accepted at the mint endpoint — it cannot be sent directly on admin routes.
 
 If **`AUTH_SETTINGS_ADMIN_KEY`** is **not** set, admin routes are open (typical local development).
 
@@ -206,12 +205,12 @@ JWT signing: prefer env **`ADMIN_SESSION_SIGNING_KEY`** (or config `AdminSession
 
 ```bash
 # Replace host and values
-MINT=$(curl -s -X POST "http://localhost:5001/api/v1/admin/sessions" \
+MINT=$(curl -s -X POST "http://localhost:5000/api/v1/admin/sessions" \
   -H "Content-Type: application/json" \
   -d '{"adminKey":"your-admin-key"}')
 SESSION=$(echo "$MINT" | jq -r .accessToken)
 
-curl -s "http://localhost:5001/api/v1/auth-settings" \
+curl -s "http://localhost:5000/api/v1/auth-settings" \
   -H "X-Admin-Session: $SESSION" | jq .
 ```
 
@@ -221,18 +220,18 @@ curl -s "http://localhost:5001/api/v1/auth-settings" \
 
 ```bash
 # 1. Get tokens (replace host and credentials)
-curl -s -X POST "http://localhost:5001/api/v1/auth/token" \
+curl -s -X POST "http://localhost:5000/api/v1/auth/token" \
   -H "Content-Type: application/json" \
   -d '{"clientId":"my-client","clientSecret":"my-secret"}' \
   | jq .
 
 # 2. Call a protected endpoint with the access token
 ACCESS_TOKEN="<accessToken from step 1>"
-curl -s "http://localhost:5001/api/v1/patients/1" \
+curl -s "http://localhost:5000/api/v1/patients/1" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 3. When the token is near expiry, refresh
-curl -s -X POST "http://localhost:5001/api/v1/auth/refresh" \
+curl -s -X POST "http://localhost:5000/api/v1/auth/refresh" \
   -H "Content-Type: application/json" \
   -d '{"refreshToken":"<refreshToken from step 1>"}' \
   | jq .
