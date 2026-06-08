@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import AuthSettingsPage from "./AuthSettingsPage";
 import { server } from "./test/server";
-import { renderWithAdminSession } from "./test/renderWithAdminSession";
+import { renderWithAdminSession, renderInDemoMode } from "./test/renderWithAdminSession";
+import { DEMO_AUTH_SETTINGS } from "./demoData";
 
 const authSettingsPath = "*/api/v1/auth-settings";
 
@@ -42,6 +43,31 @@ describe("AuthSettingsPage", () => {
         screen.getByText(/unable to load authentication settings/i)
       ).toBeInTheDocument();
     });
+  });
+
+  it("demo mode: shows DEMO_AUTH_SETTINGS mode without calling the API", async () => {
+    const getSettingsSpy = vi.fn();
+    server.use(http.get(authSettingsPath, () => { getSettingsSpy(); return HttpResponse.json({}); }));
+
+    renderInDemoMode(<AuthSettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(DEMO_AUTH_SETTINGS.mode)).toBeInTheDocument();
+    });
+    expect(getSettingsSpy).not.toHaveBeenCalled();
+  });
+
+  it("demo mode: Save Settings button is present and clickable without triggering an API call", async () => {
+    const user = userEvent.setup();
+    const putSpy = vi.fn();
+    server.use(http.put(authSettingsPath, () => { putSpy(); return HttpResponse.json({}); }));
+
+    renderInDemoMode(<AuthSettingsPage />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /save settings/i })).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: /save settings/i }));
+
+    expect(putSpy).not.toHaveBeenCalled();
   });
 
   it("saves updated bearer settings and shows success feedback", async () => {

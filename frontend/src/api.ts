@@ -42,6 +42,20 @@ export async function exchangeAdminSession(adminKey: string): Promise<CreateAdmi
   return response.data;
 }
 
+/**
+ * Probes whether the server requires an admin key by calling HEAD /api/v1/auth-settings
+ * without a session header. Returns true when a key is required (401/403 or network error),
+ * false in open/local-dev mode (200).
+ */
+export async function probeAdminKeyRequired(): Promise<boolean> {
+  try {
+    const response = await mintApi.head("/api/v1/auth-settings", { validateStatus: () => true });
+    return response.status === 401 || response.status === 403;
+  } catch {
+    return true;
+  }
+}
+
 export type AuthMode = "None" | "Bearer" | "CCAPIKey" | "OAuth";
 
 export interface AuthSettings {

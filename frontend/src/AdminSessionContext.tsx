@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from "react";
 import {
@@ -13,13 +14,19 @@ import {
   hydrateAdminSessionFromStorage,
   setAdminSession
 } from "./adminSessionStore";
-import { exchangeAdminSession } from "./api";
+import { exchangeAdminSession, probeAdminKeyRequired } from "./api";
 
 export interface AdminSessionContextValue {
   /** True when a non-expired session token is stored. */
   hasSession: boolean;
   /** ISO 8601 expiry from the server, or null. */
   expiresAtUtc: string | null;
+  /** True when the server requires an admin key (protected deployment). */
+  isAdminKeyRequired: boolean;
+  /** True when the admin-key probe has completed (either outcome). */
+  isProbeSettled: boolean;
+  /** True when the user is unauthenticated AND admin key protection is active. */
+  isDemoMode: boolean;
   /** Exchange the static admin key for a short-lived session JWT. */
   // eslint-disable-next-line no-unused-vars -- parameter name documents the API for consumers
   signIn: (adminKey: string) => Promise<void>;
@@ -32,18 +39,66 @@ const AdminSessionContext = createContext<AdminSessionContextValue | null>(null)
 
 export function AdminSessionProvider({ children }: { children: React.ReactNode }) {
   const [tick, setTick] = useState(0);
+  const [isAdminKeyRequired, setIsAdminKeyRequired] = useState(false);
+  const [isProbeSettled, setIsProbeSettled] = useState(false);
+  const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(() => {
     setTick((t) => t + 1);
   }, []);
 
+  // Hydrate session from storage and probe open-mode on mount
   useEffect(() => {
     hydrateAdminSessionFromStorage();
     setTick((t) => t + 1);
+
+    let cancelled = false;
+    probeAdminKeyRequired()
+      .then((required) => {
+        if (!cancelled) {
+          setIsAdminKeyRequired(required);
+          setIsProbeSettled(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIsAdminKeyRequired(true);
+          setIsProbeSettled(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const hasSession = tick >= 0 && getAdminSessionToken() !== null;
   const expiresAtUtc = tick >= 0 ? getAdminSessionExpiresAtUtc() : null;
+  const isDemoMode = !hasSession && isAdminKeyRequired;
+
+  // Schedule a timer to fire refresh() exactly when the token expires
+  useEffect(() => {
+    if (expiryTimerRef.current !== null) {
+      clearTimeout(expiryTimerRef.current);
+      expiryTimerRef.current = null;
+    }
+
+    if (!expiresAtUtc) return;
+
+    const delay = Date.parse(expiresAtUtc) - Date.now();
+    if (delay <= 0) return;
+
+    expiryTimerRef.current = setTimeout(() => {
+      refresh();
+    }, delay);
+
+    return () => {
+      if (expiryTimerRef.current !== null) {
+        clearTimeout(expiryTimerRef.current);
+        expiryTimerRef.current = null;
+      }
+    };
+  }, [expiresAtUtc, refresh]);
 
   const signIn = useCallback(
     async (adminKey: string) => {
@@ -63,11 +118,14 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
     () => ({
       hasSession,
       expiresAtUtc,
+      isAdminKeyRequired,
+      isProbeSettled,
+      isDemoMode,
       signIn,
       signOut,
       refresh
     }),
-    [hasSession, expiresAtUtc, signIn, signOut, refresh]
+    [hasSession, expiresAtUtc, isAdminKeyRequired, isProbeSettled, isDemoMode, signIn, signOut, refresh]
   );
 
   return <AdminSessionContext.Provider value={value}>{children}</AdminSessionContext.Provider>;

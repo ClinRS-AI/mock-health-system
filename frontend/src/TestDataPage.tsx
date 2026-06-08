@@ -23,9 +23,10 @@ import {
 } from "./api";
 import AdminSessionBanner from "./AdminSessionBanner";
 import { useAdminSession } from "./AdminSessionContext";
+import { DEMO_TEST_DATA_STATS } from "./demoData";
 
 const TestDataPage: React.FC = () => {
-  const { hasSession } = useAdminSession();
+  const { hasSession, isDemoMode, isProbeSettled } = useAdminSession();
 
   const [generateOptions, setGenerateOptions] = useState<GeneratePatientsOptions>({
     totalCount: 5000,
@@ -99,11 +100,17 @@ const TestDataPage: React.FC = () => {
   }
 
   useEffect(() => {
-    void loadStats();
-    void loadSoapPkeys();
-  }, [hasSession]);
+    if (!hasSession && !isProbeSettled) return;
+    if (isDemoMode) {
+      setStats(DEMO_TEST_DATA_STATS);
+    } else {
+      void loadStats();
+      void loadSoapPkeys();
+    }
+  }, [hasSession, isDemoMode, isProbeSettled]);
 
   async function handleReset() {
+    if (isDemoMode) return;
     try {
       setLoadingReset(true);
       setError(null);
@@ -120,6 +127,7 @@ const TestDataPage: React.FC = () => {
   }
 
   async function handleGenerate() {
+    if (isDemoMode) return;
     try {
       setLoadingGenerate(true);
       setError(null);
@@ -137,6 +145,7 @@ const TestDataPage: React.FC = () => {
   }
 
   async function handleGenerateStaff() {
+    if (isDemoMode) return;
     try {
       setLoadingGenerateStaff(true);
       setError(null);
@@ -154,6 +163,7 @@ const TestDataPage: React.FC = () => {
   }
 
   async function handleGenerateRecentAuditEvents() {
+    if (isDemoMode) return;
     try {
       setLoadingGenerateAuditEvents(true);
       setError(null);
@@ -172,6 +182,7 @@ const TestDataPage: React.FC = () => {
 
   async function handleAddPatient(e: React.FormEvent) {
     e.preventDefault();
+    if (isDemoMode) return;
     if (!addForm.firstName.trim() || !addForm.lastName.trim() || !addForm.email.trim()) return;
     try {
       setLoadingAdd(true);
@@ -197,6 +208,7 @@ const TestDataPage: React.FC = () => {
 
   async function handleLookupPatient(e: React.FormEvent) {
     e.preventDefault();
+    if (isDemoMode) return;
     const idTrim = lookupForm.id.trim();
     const uidTrim = lookupForm.uid.trim();
     const emailTrim = lookupForm.email.trim();
@@ -237,6 +249,7 @@ const TestDataPage: React.FC = () => {
   }
 
   async function handleGetRandomPatient() {
+    if (isDemoMode) return;
     try {
       setLoadingLookup(true);
       setError(null);
@@ -261,6 +274,7 @@ const TestDataPage: React.FC = () => {
   }
 
   async function handleSavePatientRecord(withAudit: boolean) {
+    if (isDemoMode) return;
     if (!lookupResult) return;
 
     try {
@@ -359,7 +373,7 @@ const TestDataPage: React.FC = () => {
             <h3 className="text-xs font-semibold text-slate-700">SOAP report pkeys</h3>
             <button
               type="button"
-              onClick={() => void loadSoapPkeys()}
+              onClick={() => { if (!isDemoMode) void loadSoapPkeys(); }}
               className="text-xs font-medium text-sky-700 hover:underline"
             >
               Refresh
@@ -401,8 +415,10 @@ const TestDataPage: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              void loadStats();
-              void loadSoapPkeys();
+              if (!isDemoMode) {
+                void loadStats();
+                void loadSoapPkeys();
+              }
             }}
             className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 self-start"
           >
