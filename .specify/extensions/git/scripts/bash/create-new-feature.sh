@@ -106,8 +106,10 @@ get_highest_from_specs() {
     local specs_dir="$1"
     local highest=0
 
-    if [ -d "$specs_dir" ]; then
-        for dir in "$specs_dir"/*; do
+    # Scan both top-level specs dir and the feature/ subdirectory
+    for scan_dir in "$specs_dir" "$specs_dir/feature"; do
+        [ -d "$scan_dir" ] || continue
+        for dir in "$scan_dir"/*; do
             [ -d "$dir" ] || continue
             dirname=$(basename "$dir")
             # Match sequential prefixes (>=3 digits), but skip timestamp dirs.
@@ -119,7 +121,7 @@ get_highest_from_specs() {
                 fi
             fi
         done
-    fi
+    done
 
     echo "$highest"
 }
@@ -134,8 +136,10 @@ _extract_highest_number() {
     local highest=0
     while IFS= read -r name; do
         [ -z "$name" ] && continue
-        if echo "$name" | grep -Eq '^[0-9]{3,}-' && ! echo "$name" | grep -Eq '^[0-9]{8}-[0-9]{6}-'; then
-            number=$(echo "$name" | grep -Eo '^[0-9]+' || echo "0")
+        # Strip optional feature/ prefix before matching sequential pattern
+        local stripped="${name#feature/}"
+        if echo "$stripped" | grep -Eq '^[0-9]{3,}-' && ! echo "$stripped" | grep -Eq '^[0-9]{8}-[0-9]{6}-'; then
+            number=$(echo "$stripped" | grep -Eo '^[0-9]+' || echo "0")
             number=$((10#$number))
             if [ "$number" -gt "$highest" ]; then
                 highest=$number
@@ -305,9 +309,14 @@ generate_branch_name() {
 # Check for GIT_BRANCH_NAME env var override (exact branch name, no prefix/suffix)
 if [ -n "${GIT_BRANCH_NAME:-}" ]; then
     BRANCH_NAME="$GIT_BRANCH_NAME"
-    # Extract FEATURE_NUM from the branch name if it starts with a numeric prefix
-    # Check timestamp pattern first (YYYYMMDD-HHMMSS-) since it also matches the simpler ^[0-9]+ pattern
-    if echo "$BRANCH_NAME" | grep -Eq '^[0-9]{8}-[0-9]{6}-'; then
+    # Extract FEATURE_NUM from the branch name — handle feature/NNN-suffix and bare NNN-suffix formats
+    if echo "$BRANCH_NAME" | grep -Eq '^feature/[0-9]{8}-[0-9]{6}-'; then
+        FEATURE_NUM=$(echo "$BRANCH_NAME" | sed 's|^feature/||' | grep -Eo '^[0-9]{8}-[0-9]{6}')
+        BRANCH_SUFFIX="${BRANCH_NAME#feature/${FEATURE_NUM}-}"
+    elif echo "$BRANCH_NAME" | grep -Eq '^feature/[0-9]+-'; then
+        FEATURE_NUM=$(echo "$BRANCH_NAME" | sed 's|^feature/||' | grep -Eo '^[0-9]+')
+        BRANCH_SUFFIX="${BRANCH_NAME#feature/${FEATURE_NUM}-}"
+    elif echo "$BRANCH_NAME" | grep -Eq '^[0-9]{8}-[0-9]{6}-'; then
         FEATURE_NUM=$(echo "$BRANCH_NAME" | grep -Eo '^[0-9]{8}-[0-9]{6}')
         BRANCH_SUFFIX="${BRANCH_NAME#${FEATURE_NUM}-}"
     elif echo "$BRANCH_NAME" | grep -Eq '^[0-9]+-'; then
@@ -334,7 +343,7 @@ else
     # Determine branch prefix
     if [ "$USE_TIMESTAMP" = true ]; then
         FEATURE_NUM=$(date +%Y%m%d-%H%M%S)
-        BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
+        BRANCH_NAME="feature/${FEATURE_NUM}-${BRANCH_SUFFIX}"
     else
         if [ -z "$BRANCH_NUMBER" ]; then
             if [ "$DRY_RUN" = true ] && [ "$HAS_GIT" = true ]; then
@@ -351,7 +360,7 @@ else
         fi
 
         FEATURE_NUM=$(printf "%03d" "$((10#$BRANCH_NUMBER))")
-        BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
+        BRANCH_NAME="feature/${FEATURE_NUM}-${BRANCH_SUFFIX}"
     fi
 fi
 
@@ -363,14 +372,15 @@ if [ -n "${GIT_BRANCH_NAME:-}" ] && [ "$BRANCH_BYTE_LEN" -gt $MAX_BRANCH_LENGTH 
     >&2 echo "Error: GIT_BRANCH_NAME must be 244 bytes or fewer in UTF-8. Provided value is ${BRANCH_BYTE_LEN} bytes."
     exit 1
 elif [ "$BRANCH_BYTE_LEN" -gt $MAX_BRANCH_LENGTH ]; then
-    PREFIX_LENGTH=$(( ${#FEATURE_NUM} + 1 ))
+    # Account for prefix: "feature/" (8) + FEATURE_NUM + "-" (1)
+    PREFIX_LENGTH=$(( 8 + ${#FEATURE_NUM} + 1 ))
     MAX_SUFFIX_LENGTH=$((MAX_BRANCH_LENGTH - PREFIX_LENGTH))
 
     TRUNCATED_SUFFIX=$(echo "$BRANCH_SUFFIX" | cut -c1-$MAX_SUFFIX_LENGTH)
     TRUNCATED_SUFFIX=$(echo "$TRUNCATED_SUFFIX" | sed 's/-$//')
 
     ORIGINAL_BRANCH_NAME="$BRANCH_NAME"
-    BRANCH_NAME="${FEATURE_NUM}-${TRUNCATED_SUFFIX}"
+    BRANCH_NAME="feature/${FEATURE_NUM}-${TRUNCATED_SUFFIX}"
 
     >&2 echo "[specify] Warning: Branch name exceeded GitHub's 244-byte limit"
     >&2 echo "[specify] Original: $ORIGINAL_BRANCH_NAME (${#ORIGINAL_BRANCH_NAME} bytes)"

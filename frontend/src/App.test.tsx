@@ -2,17 +2,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
-import { getApiStatus } from "./api";
+import { getApiStatus, probeAdminKeyRequired } from "./api";
 
 vi.mock("./api", () => ({
-  getApiStatus: vi.fn()
+  getApiStatus: vi.fn(),
+  probeAdminKeyRequired: vi.fn().mockResolvedValue(false),
+  exchangeAdminSession: vi.fn()
 }));
 
 const mockedGetApiStatus = vi.mocked(getApiStatus);
+const mockedProbeAdminKeyRequired = vi.mocked(probeAdminKeyRequired);
 
 describe("App", () => {
   beforeEach(() => {
     mockedGetApiStatus.mockReset();
+    mockedProbeAdminKeyRequired.mockReset();
+    mockedProbeAdminKeyRequired.mockResolvedValue(false);
   });
 
   it("renders app title and stack overview", () => {
@@ -55,6 +60,24 @@ describe("App", () => {
       ).toBeInTheDocument();
     });
     consoleSpy.mockRestore();
+  });
+
+  it("demo mode: DemoBanner is not rendered on the Admin access tab", async () => {
+    mockedProbeAdminKeyRequired.mockResolvedValue(true);
+    const user = userEvent.setup();
+    render(<App />);
+
+    // Navigate to a demo-mode view to confirm banner appears
+    await user.click(screen.getByRole("button", { name: /authentication settings/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/demo mode/i)).toBeInTheDocument();
+    });
+
+    // Navigate to admin access tab (nav button, not the DemoBanner CTA)
+    await user.click(screen.getByRole("button", { name: "Admin access" }));
+
+    // Banner must not be present on the Admin access tab
+    expect(screen.queryByText(/demo mode/i)).not.toBeInTheDocument();
   });
 
   it("disables button and shows Checking... while loading", async () => {

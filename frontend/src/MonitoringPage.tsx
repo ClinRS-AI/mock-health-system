@@ -9,6 +9,7 @@ import type {
 import { getMonitoredRequest, getMonitoredRequests, getMonitoringStats } from "./api";
 import AdminSessionBanner from "./AdminSessionBanner";
 import { useAdminSession } from "./AdminSessionContext";
+import { DEMO_MONITORING_DETAILS, DEMO_MONITORING_SUMMARIES, DEMO_MONITORING_STATS } from "./demoData";
 
 const initialParams: GetMonitoredRequestsParams = {
   take: 100
@@ -36,7 +37,7 @@ function statusColorHex(statusCode: number): string {
 }
 
 const MonitoringPage: React.FC = () => {
-  const { hasSession } = useAdminSession();
+  const { hasSession, isDemoMode, isProbeSettled } = useAdminSession();
   const [params] = useState<GetMonitoredRequestsParams>(initialParams);
   const [items, setItems] = useState<MonitoredRequestSummary[]>([]);
   const [stats, setStats] = useState<MonitoringStats | null>(null);
@@ -47,9 +48,15 @@ const MonitoringPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void load();
+    if (!hasSession && !isProbeSettled) return;
+    if (isDemoMode) {
+      setItems(DEMO_MONITORING_SUMMARIES);
+      setStats(DEMO_MONITORING_STATS);
+    } else {
+      void load();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSession]);
+  }, [hasSession, isDemoMode, isProbeSettled]);
 
   async function load() {
     try {
@@ -71,6 +78,13 @@ const MonitoringPage: React.FC = () => {
 
   async function handleRowClick(id: number) {
     setExpandedId((current) => (current === id ? null : id));
+
+    if (isDemoMode) {
+      if (!details[id]) {
+        setDetails((prev) => ({ ...prev, [id]: DEMO_MONITORING_DETAILS[id] ?? null }));
+      }
+      return;
+    }
 
     if (details[id]) {
       return;
@@ -118,7 +132,7 @@ const MonitoringPage: React.FC = () => {
             <button
               type="button"
               className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              onClick={() => void load()}
+              onClick={() => { if (!isDemoMode) void load(); }}
               disabled={loading}
             >
               {loading ? "Refreshing..." : "Refresh"}
@@ -204,10 +218,10 @@ const MonitoringPage: React.FC = () => {
               <tr>
                 <th className="px-3 py-2 text-left font-medium text-slate-700">Time</th>
                 <th className="px-3 py-2 text-left font-medium text-slate-700">Method</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-700">Path</th>
+                <th className="hidden sm:table-cell px-3 py-2 text-left font-medium text-slate-700">Path</th>
                 <th className="px-3 py-2 text-left font-medium text-slate-700">Status</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-700">Duration</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-700">Origin</th>
+                <th className="hidden sm:table-cell px-3 py-2 text-left font-medium text-slate-700">Duration</th>
+                <th className="hidden md:table-cell px-3 py-2 text-left font-medium text-slate-700">Origin</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -224,9 +238,12 @@ const MonitoringPage: React.FC = () => {
                         {formatTimestamp(item.createdAtUtc)}
                       </td>
                       <td className="px-3 py-2 align-top font-mono text-xs text-slate-800">
-                        {item.method}
+                        <span>{item.method}</span>
+                        <span className="sm:hidden block font-sans font-normal text-slate-600 break-all mt-0.5">
+                          {item.path}
+                        </span>
                       </td>
-                      <td className="px-3 py-2 align-top text-slate-800 break-all">{item.path}</td>
+                      <td className="hidden sm:table-cell px-3 py-2 align-top text-slate-800 break-all">{item.path}</td>
                       <td className="px-3 py-2 align-top">
                         <span
                           className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusColor(
@@ -236,8 +253,8 @@ const MonitoringPage: React.FC = () => {
                           {item.statusCode}
                         </span>
                       </td>
-                      <td className="px-3 py-2 align-top text-slate-700">{item.durationMs} ms</td>
-                      <td className="px-3 py-2 align-top text-slate-500 break-all">
+                      <td className="hidden sm:table-cell px-3 py-2 align-top text-slate-700">{item.durationMs} ms</td>
+                      <td className="hidden md:table-cell px-3 py-2 align-top text-slate-500 break-all">
                         {item.origin ?? "—"}
                       </td>
                     </tr>

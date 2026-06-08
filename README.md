@@ -35,6 +35,31 @@ This repository is a **lightweight mock health system** to develop against. It p
 
 ---
 
+### Demo mode
+
+When `AUTH_SETTINGS_ADMIN_KEY` is configured on the backend, unauthenticated visitors see a **Demo Mode** experience on the Authentication settings, Monitoring, and Test data management tabs. Pages are pre-populated with realistic static data and display a banner directing users to **Admin access** to sign in.
+
+**What demo mode does:**
+
+- Shows representative static data (25 request log entries, auth settings, test data stats) — no backend calls are made.
+- All buttons and form controls are visible and clickable but produce no side effects.
+- A persistent amber banner explains demo mode and links to the Admin access tab.
+- Demo mode is suppressed on the Admin access tab so users can always sign in.
+
+**When demo mode is active vs suppressed:**
+
+| Scenario | Demo mode |
+|---|---|
+| `AUTH_SETTINGS_ADMIN_KEY` is set and no session exists | **Active** |
+| `AUTH_SETTINGS_ADMIN_KEY` is set and user has signed in | **Suppressed** (live data loads) |
+| `AUTH_SETTINGS_ADMIN_KEY` is **not** set (open/local dev mode) | **Suppressed** (live data loads) |
+
+**Offline resilience:** Demo mode activates automatically even if the backend is offline. The frontend probes `HEAD /api/v1/auth-settings` on startup; any network error is treated the same as a 401 (protected), so demo data is shown without any dependency on a running API server.
+
+**Returning to live mode:** Sign in via **Admin access**. The session is stored in `sessionStorage` for the browser tab and expires according to `AdminSession__TtlMinutes` (default 30 minutes). After the session expires, the page automatically reverts to demo mode.
+
+---
+
 ### Project structure
 
 - `backend/` – .NET solution and projects; `backend/.env` for backend config (from `backend/.env.example`).

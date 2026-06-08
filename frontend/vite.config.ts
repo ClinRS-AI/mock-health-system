@@ -6,6 +6,14 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       port: 5176
+    },
+    build: {
+      target: "esnext"
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        target: "esnext"
+      }
     }
   };
 

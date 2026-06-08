@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import TestDataPage from "./TestDataPage";
 import { server } from "./test/server";
-import { renderWithAdminSession } from "./test/renderWithAdminSession";
+import { renderWithAdminSession, renderInDemoMode } from "./test/renderWithAdminSession";
+import { DEMO_TEST_DATA_STATS } from "./demoData";
 
 describe("TestDataPage", () => {
   beforeEach(() => {
@@ -92,5 +93,43 @@ describe("TestDataPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/unable to generate patients/i)).toBeInTheDocument();
     });
+  });
+
+  it("demo mode: renders stats from DEMO_TEST_DATA_STATS without calling the API", async () => {
+    const getStatsSpy = vi.fn();
+    server.use(
+      http.get("*/api/v1/test-data/patients/stats", () => {
+        getStatsSpy();
+        return HttpResponse.json({});
+      })
+    );
+
+    renderInDemoMode(<TestDataPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(String(DEMO_TEST_DATA_STATS.patientCount))).toBeInTheDocument();
+      expect(screen.getByText(String(DEMO_TEST_DATA_STATS.totalStaffCount))).toBeInTheDocument();
+    });
+    expect(getStatsSpy).not.toHaveBeenCalled();
+  });
+
+  it("demo mode: Generate Patients button is present and clickable without triggering an API call", async () => {
+    const user = userEvent.setup();
+    const postSpy = vi.fn();
+    server.use(
+      http.post("*/api/v1/test-data/patients/generate", () => {
+        postSpy();
+        return HttpResponse.json({});
+      })
+    );
+
+    renderInDemoMode(<TestDataPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /generate patients/i })).toBeInTheDocument()
+    );
+    await user.click(screen.getByRole("button", { name: /generate patients/i }));
+
+    expect(postSpy).not.toHaveBeenCalled();
   });
 });

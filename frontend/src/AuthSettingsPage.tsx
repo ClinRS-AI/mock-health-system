@@ -3,6 +3,7 @@ import type { AuthMode, AuthSettings, UpdateAuthSettingsRequest } from "./api";
 import { getAuthSettings, updateAuthSettings } from "./api";
 import AdminSessionBanner from "./AdminSessionBanner";
 import { useAdminSession } from "./AdminSessionContext";
+import { DEMO_AUTH_SETTINGS } from "./demoData";
 
 type FormState = {
   mode: AuthMode;
@@ -30,7 +31,7 @@ function mask(value: string, visible: number = 4): string {
 }
 
 const AuthSettingsPage: React.FC = () => {
-  const { hasSession } = useAdminSession();
+  const { hasSession, isDemoMode, isProbeSettled } = useAdminSession();
   const [form, setForm] = useState<FormState>(defaultState);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -40,9 +41,15 @@ const AuthSettingsPage: React.FC = () => {
   const [hasAnyTokens, setHasAnyTokens] = useState(false);
 
   useEffect(() => {
-    void loadSettings();
+    if (!hasSession && !isProbeSettled) return;
+    if (isDemoMode) {
+      applySettingsToForm(DEMO_AUTH_SETTINGS);
+      setHasAnyTokens(DEMO_AUTH_SETTINGS.hasAnyTokens);
+    } else {
+      void loadSettings();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSession]);
+  }, [hasSession, isDemoMode, isProbeSettled]);
 
   async function loadSettings() {
     try {
@@ -88,16 +95,19 @@ const AuthSettingsPage: React.FC = () => {
   }
 
   function handleGenerateBearer() {
+    if (isDemoMode) return;
     handleChange("bearerToken", generateRandomToken(40));
   }
 
   function handleGenerateClient() {
+    if (isDemoMode) return;
     handleChange("oAuthClientId", `client_${generateRandomToken(16)}`);
     handleChange("oAuthClientSecret", generateRandomToken(40));
   }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (isDemoMode) return;
     try {
       setSaving(true);
       setError(null);
@@ -150,7 +160,7 @@ const AuthSettingsPage: React.FC = () => {
             <button
               type="button"
               className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              onClick={() => void loadSettings()}
+              onClick={() => { if (!isDemoMode) void loadSettings(); }}
               disabled={loading}
             >
               {loading ? "Loading..." : "Reload settings"}

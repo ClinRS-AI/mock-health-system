@@ -98,5 +98,5 @@ All API calls go through `src/api.ts` (Axios client, typed). A request intercept
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan at
-`specs/001-cc-api-mock/plan.md`.
+`specs/feature/002-frontend-demo-mode/plan.md`.
 <!-- SPECKIT END -->
