@@ -129,10 +129,6 @@ Coverage artifacts are written to:
 - HTML report entry point: `./TestResultsFullCoverage/report-html/index.html`
 - Text summary: `./TestResultsFullCoverage/report-html/Summary.txt`
 
-### Known vulnerabilities (frontend)
-
-Running `npm audit` in `frontend/` may report **moderate** vulnerabilities in the **ajv** dependency (used by ESLint). These come from ESLint’s own dependencies; there is no patched release that fixes them without breaking the current ESLint setup. The template uses an **override** in `frontend/package.json` to fix **minimatch** (high severity); the remaining ajv advisories are accepted as known, low-risk (ReDoS in dev-only tooling). You can run `npm audit` in `frontend/` for details and re-evaluate as dependencies are updated.
-
 ### SOAP report endpoint (Clinical Conductor-style)
 
 The backend includes a SOAP report endpoint that runs predefined SQL by `pkey` and returns tabular results.
