@@ -37,5 +37,21 @@ public class AuthSettings
     /// Refresh token lifetime in days for internal OAuth.
     /// </summary>
     public int RefreshTokenLifetimeDays { get; set; } = 30;
+
+    /// <summary>
+    /// Whether per-IP rate limiting is enforced on API data endpoints.
+    /// Defaults to false so existing integrations are unaffected on upgrade.
+    /// </summary>
+    public bool RateLimitEnabled { get; set; } = false;
+
+    /// <summary>
+    /// Maximum requests per second per IP address when rate limiting is enabled.
+    /// </summary>
+    public int RateLimitPerSecond { get; set; } = 10;
+
+    /// <summary>
+    /// Maximum requests per minute per IP address when rate limiting is enabled.
+    /// </summary>
+    public int RateLimitPerMinute { get; set; } = 300;
 }
 

@@ -9,6 +9,7 @@ namespace MockHealthSystem.Api.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/system")]
+[ProducesResponseType(StatusCodes.Status429TooManyRequests)]
 public class SystemController(AppDbContext dbContext) : ControllerBase
 {
     /// <summary>

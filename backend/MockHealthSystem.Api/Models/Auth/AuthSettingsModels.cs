@@ -9,6 +9,9 @@ public sealed class AuthSettingsViewModel
     public int AccessTokenLifetimeMinutes { get; set; }
     public int RefreshTokenLifetimeDays { get; set; }
     public bool HasAnyTokens { get; set; }
+    public bool RateLimitEnabled { get; set; }
+    public int RateLimitPerSecond { get; set; }
+    public int RateLimitPerMinute { get; set; }
 }
 
 public sealed class AuthSettingsUpdateModel
@@ -19,5 +22,8 @@ public sealed class AuthSettingsUpdateModel
     public string? OAuthClientSecret { get; set; }
     public int? AccessTokenLifetimeMinutes { get; set; }
     public int? RefreshTokenLifetimeDays { get; set; }
+    public bool? RateLimitEnabled { get; set; }
+    public int? RateLimitPerSecond { get; set; }
+    public int? RateLimitPerMinute { get; set; }
 }
 

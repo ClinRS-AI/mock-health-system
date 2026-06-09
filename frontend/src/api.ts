@@ -66,6 +66,9 @@ export interface AuthSettings {
   accessTokenLifetimeMinutes: number;
   refreshTokenLifetimeDays: number;
   hasAnyTokens: boolean;
+  rateLimitEnabled: boolean;
+  rateLimitPerSecond: number;
+  rateLimitPerMinute: number;
 }
 
 export interface UpdateAuthSettingsRequest {
@@ -75,6 +78,9 @@ export interface UpdateAuthSettingsRequest {
   oAuthClientSecret?: string | null;
   accessTokenLifetimeMinutes?: number;
   refreshTokenLifetimeDays?: number;
+  rateLimitEnabled?: boolean;
+  rateLimitPerSecond?: number;
+  rateLimitPerMinute?: number;
 }
 
 export async function getAuthSettings(): Promise<AuthSettings> {

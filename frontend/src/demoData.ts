@@ -13,7 +13,10 @@ export const DEMO_AUTH_SETTINGS: AuthSettings = {
   oAuthClientSecret: null,
   accessTokenLifetimeMinutes: 60,
   refreshTokenLifetimeDays: 30,
-  hasAnyTokens: true
+  hasAnyTokens: true,
+  rateLimitEnabled: true,
+  rateLimitPerSecond: 10,
+  rateLimitPerMinute: 300
 };
 
 // 25 realistic request log entries spanning the past 24 hours
