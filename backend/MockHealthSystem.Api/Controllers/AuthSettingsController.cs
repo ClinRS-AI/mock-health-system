@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MockHealthSystem.Api.Models.Auth;
+using MockHealthSystem.Api.RateLimiting;
 using MockHealthSystem.Api.Services;
 using MockHealthSystem.Api.Services.AdminSession;
 using MockHealthSystem.Api.Swagger;
@@ -23,15 +24,18 @@ public sealed class AuthSettingsController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IAuthSettingsService _authSettingsService;
     private readonly IAdminRequestValidator _adminRequestValidator;
+    private readonly IRateLimitCounterStore _rateLimitCounterStore;
 
     public AuthSettingsController(
         AppDbContext db,
         IAuthSettingsService authSettingsService,
-        IAdminRequestValidator adminRequestValidator)
+        IAdminRequestValidator adminRequestValidator,
+        IRateLimitCounterStore rateLimitCounterStore)
     {
         _db = db;
         _authSettingsService = authSettingsService;
         _adminRequestValidator = adminRequestValidator;
+        _rateLimitCounterStore = rateLimitCounterStore;
     }
 
     /// <summary>
@@ -61,7 +65,10 @@ public sealed class AuthSettingsController : ControllerBase
             OAuthClientSecret = settings.OAuthClientSecret,
             AccessTokenLifetimeMinutes = settings.AccessTokenLifetimeMinutes,
             RefreshTokenLifetimeDays = settings.RefreshTokenLifetimeDays,
-            HasAnyTokens = hasTokens
+            HasAnyTokens = hasTokens,
+            RateLimitEnabled = settings.RateLimitEnabled,
+            RateLimitPerSecond = settings.RateLimitPerSecond,
+            RateLimitPerMinute = settings.RateLimitPerMinute
         };
 
         return Ok(viewModel);
@@ -141,6 +148,30 @@ public sealed class AuthSettingsController : ControllerBase
             existing.RefreshTokenLifetimeDays = model.RefreshTokenLifetimeDays.Value;
         }
 
+        if (model.RateLimitEnabled.HasValue)
+        {
+            existing.RateLimitEnabled = model.RateLimitEnabled.Value;
+        }
+
+        if (model.RateLimitPerSecond.HasValue)
+        {
+            existing.RateLimitPerSecond = model.RateLimitPerSecond.Value;
+        }
+
+        if (model.RateLimitPerMinute.HasValue)
+        {
+            existing.RateLimitPerMinute = model.RateLimitPerMinute.Value;
+        }
+
+        // Validate limits when rate limiting would be active after this save
+        if (existing.RateLimitEnabled)
+        {
+            if (existing.RateLimitPerSecond < 1)
+                return BadRequest("RateLimitPerSecond must be at least 1 when rate limiting is enabled.");
+            if (existing.RateLimitPerMinute < 1)
+                return BadRequest("RateLimitPerMinute must be at least 1 when rate limiting is enabled.");
+        }
+
         if (!created)
         {
             _db.AuthSettings.Update(existing);
@@ -170,6 +201,7 @@ public sealed class AuthSettingsController : ControllerBase
 
         await _db.SaveChangesAsync(cancellationToken);
         await _authSettingsService.InvalidateCacheAsync();
+        _rateLimitCounterStore.ResetAll();
 
         var hasTokens = await _db.AuthTokens
             .AsNoTracking()
@@ -183,7 +215,10 @@ public sealed class AuthSettingsController : ControllerBase
             OAuthClientSecret = existing.OAuthClientSecret,
             AccessTokenLifetimeMinutes = existing.AccessTokenLifetimeMinutes,
             RefreshTokenLifetimeDays = existing.RefreshTokenLifetimeDays,
-            HasAnyTokens = hasTokens
+            HasAnyTokens = hasTokens,
+            RateLimitEnabled = existing.RateLimitEnabled,
+            RateLimitPerSecond = existing.RateLimitPerSecond,
+            RateLimitPerMinute = existing.RateLimitPerMinute
         };
 
         return Ok(viewModel);

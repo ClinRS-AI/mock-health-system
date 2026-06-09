@@ -22,6 +22,7 @@ public sealed class HealthController : ControllerBase
     /// <response code="200">API is running.</response>
     [HttpGet]
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public Task<IActionResult> GetAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult<IActionResult>(Ok("Mock Health System API is running."));

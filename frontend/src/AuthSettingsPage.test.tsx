@@ -70,6 +70,193 @@ describe("AuthSettingsPage", () => {
     expect(putSpy).not.toHaveBeenCalled();
   });
 
+  it("renders Rate Limiting section with values from API response", async () => {
+    server.use(
+      http.get(authSettingsPath, () =>
+        HttpResponse.json({
+          mode: "None",
+          bearerToken: null,
+          oAuthClientId: null,
+          oAuthClientSecret: null,
+          accessTokenLifetimeMinutes: 60,
+          refreshTokenLifetimeDays: 30,
+          hasAnyTokens: false,
+          rateLimitEnabled: false,
+          rateLimitPerSecond: 10,
+          rateLimitPerMinute: 300
+        })
+      )
+    );
+
+    renderWithAdminSession(<AuthSettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Rate Limiting")).toBeInTheDocument();
+      expect(screen.getByText("Disabled")).toBeInTheDocument();
+    });
+
+    const perSecondInput = screen.getByLabelText(/requests per second/i);
+    const perMinuteInput = screen.getByLabelText(/requests per minute/i);
+    expect(perSecondInput).toHaveValue(10);
+    expect(perMinuteInput).toHaveValue(300);
+  });
+
+  it("save includes rate limit fields in PUT payload", async () => {
+    const user = userEvent.setup();
+    let capturedBody: Record<string, unknown> | null = null;
+
+    server.use(
+      http.get(authSettingsPath, () =>
+        HttpResponse.json({
+          mode: "None",
+          bearerToken: null,
+          oAuthClientId: null,
+          oAuthClientSecret: null,
+          accessTokenLifetimeMinutes: 60,
+          refreshTokenLifetimeDays: 30,
+          hasAnyTokens: false,
+          rateLimitEnabled: false,
+          rateLimitPerSecond: 10,
+          rateLimitPerMinute: 300
+        })
+      ),
+      http.put(authSettingsPath, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          mode: "None",
+          bearerToken: null,
+          oAuthClientId: null,
+          oAuthClientSecret: null,
+          accessTokenLifetimeMinutes: 60,
+          refreshTokenLifetimeDays: 30,
+          hasAnyTokens: false,
+          rateLimitEnabled: true,
+          rateLimitPerSecond: 10,
+          rateLimitPerMinute: 300
+        });
+      })
+    );
+
+    renderWithAdminSession(<AuthSettingsPage />);
+    await screen.findByText("Rate Limiting");
+
+    // Enable rate limiting
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: /save settings/i }));
+
+    await waitFor(() => {
+      expect(capturedBody).not.toBeNull();
+    });
+    expect(capturedBody).toMatchObject({
+      rateLimitEnabled: true,
+      rateLimitPerSecond: 10,
+      rateLimitPerMinute: 300
+    });
+  });
+
+  it("demo mode: rate limit inputs are disabled", async () => {
+    renderInDemoMode(<AuthSettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Rate Limiting")).toBeInTheDocument();
+    });
+
+    const perSecondInput = screen.getByLabelText(/requests per second/i);
+    const perMinuteInput = screen.getByLabelText(/requests per minute/i);
+    const checkbox = screen.getByRole("checkbox");
+
+    expect(perSecondInput).toBeDisabled();
+    expect(perMinuteInput).toBeDisabled();
+    expect(checkbox).toBeDisabled();
+  });
+
+  it("save with rateLimitEnabled false sends false in payload", async () => {
+    const user = userEvent.setup();
+    let capturedBody: Record<string, unknown> | null = null;
+
+    server.use(
+      http.get(authSettingsPath, () =>
+        HttpResponse.json({
+          mode: "None",
+          bearerToken: null,
+          oAuthClientId: null,
+          oAuthClientSecret: null,
+          accessTokenLifetimeMinutes: 60,
+          refreshTokenLifetimeDays: 30,
+          hasAnyTokens: false,
+          rateLimitEnabled: true,
+          rateLimitPerSecond: 5,
+          rateLimitPerMinute: 100
+        })
+      ),
+      http.put(authSettingsPath, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          mode: "None",
+          bearerToken: null,
+          oAuthClientId: null,
+          oAuthClientSecret: null,
+          accessTokenLifetimeMinutes: 60,
+          refreshTokenLifetimeDays: 30,
+          hasAnyTokens: false,
+          rateLimitEnabled: false,
+          rateLimitPerSecond: 5,
+          rateLimitPerMinute: 100
+        });
+      })
+    );
+
+    renderWithAdminSession(<AuthSettingsPage />);
+    await screen.findByText("Enabled");
+
+    // Toggle off
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: /save settings/i }));
+
+    await waitFor(() => {
+      expect(capturedBody).not.toBeNull();
+    });
+    expect(capturedBody).toMatchObject({
+      rateLimitEnabled: false,
+      rateLimitPerSecond: 5,
+      rateLimitPerMinute: 100
+    });
+  });
+
+  it("disabling rate limit renders number inputs as disabled, not hidden", async () => {
+    server.use(
+      http.get(authSettingsPath, () =>
+        HttpResponse.json({
+          mode: "None",
+          bearerToken: null,
+          oAuthClientId: null,
+          oAuthClientSecret: null,
+          accessTokenLifetimeMinutes: 60,
+          refreshTokenLifetimeDays: 30,
+          hasAnyTokens: false,
+          rateLimitEnabled: false,
+          rateLimitPerSecond: 10,
+          rateLimitPerMinute: 300
+        })
+      )
+    );
+
+    renderWithAdminSession(<AuthSettingsPage />);
+    await screen.findByText("Rate Limiting");
+
+    const perSecondInput = screen.getByLabelText(/requests per second/i);
+    const perMinuteInput = screen.getByLabelText(/requests per minute/i);
+
+    // Inputs are present in the DOM (not hidden) but disabled
+    expect(perSecondInput).toBeInTheDocument();
+    expect(perMinuteInput).toBeInTheDocument();
+    expect(perSecondInput).toBeDisabled();
+    expect(perMinuteInput).toBeDisabled();
+    // Values are preserved
+    expect(perSecondInput).toHaveValue(10);
+    expect(perMinuteInput).toHaveValue(300);
+  });
+
   it("saves updated bearer settings and shows success feedback", async () => {
     const user = userEvent.setup();
 

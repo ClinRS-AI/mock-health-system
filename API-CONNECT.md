@@ -201,6 +201,28 @@ JWT signing: prefer env **`ADMIN_SESSION_SIGNING_KEY`** (or config `AdminSession
 
 ---
 
+## Rate limiting
+
+When rate limiting is enabled (configurable via **Authentication Settings** in the admin UI or directly via `PUT /api/v1/auth-settings`), API data endpoints enforce per-IP fixed-window counters. Admin interface endpoints (`/api/v1/auth-settings`, `/api/v1/monitoring`, `/api/v1/test-data`, `/api/v1/admin`) are **exempt** from the configurable limit; they are subject to a separate fixed ceiling of 120 requests/second and 5 000 requests/minute per IP, which cannot be changed via settings.
+
+When a limit is exceeded the server returns **429 Too Many Requests** with:
+
+- `Retry-After: <seconds>` header — the number of seconds until the client can retry. Reflects the **longer** resetting window (per-minute takes precedence over per-second) so the retry will succeed rather than immediately hitting the other limit again.
+- JSON body in the standard error shape:
+
+```json
+{
+  "status": 429,
+  "title": "Too Many Requests",
+  "detail": "Rate limit exceeded. Retry after 58 seconds.",
+  "traceId": "<request-trace-id>"
+}
+```
+
+Rate limiting is **off by default** (`RateLimitEnabled = false`). Default limits when enabled: 10 requests/second and 300 requests/minute per IP.
+
+---
+
 ## Example: mint admin session then call auth-settings (curl)
 
 ```bash

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
 using MockHealthSystem.Api.Authentication;
 using MockHealthSystem.Api.Middleware;
+using MockHealthSystem.Api.RateLimiting;
 using MockHealthSystem.Api.Services;
 using MockHealthSystem.Api.Services.AdminSession;
 using MockHealthSystem.Api.Controllers;
@@ -186,6 +187,7 @@ builder.Services.Configure<AdminSessionOptions>(
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IAdminSessionJwtService, AdminSessionJwtService>();
 builder.Services.AddSingleton<IAdminRequestValidator, AdminRequestValidator>();
+builder.Services.AddSingleton<IRateLimitCounterStore, RateLimitCounterStore>();
 
 builder.Services.AddAuthentication("Mock")
     .AddScheme<AuthenticationSchemeOptions, MockAuthHandler>("Mock", _ => { });
@@ -239,7 +241,7 @@ if (deferDatabaseUntilMigrated)
     });
 }
 
-if (app.Environment.IsProduction())
+if (!app.Environment.IsDevelopment())
 {
     // Cloud Run terminates TLS; the container sees HTTP. Trust X-Forwarded-Proto for HTTPS redirects and link generation.
     var forwarded = new ForwardedHeadersOptions
@@ -277,6 +279,9 @@ app.UseAuthentication();
 
 // Log API requests before authorization so 401s and other short-circuited responses are still logged.
 app.UseMiddleware<RequestLoggingMiddleware>();
+
+// Rate limiting runs after logging (so 429s are recorded) and before authorization.
+app.UseMiddleware<RateLimitingMiddleware>();
 
 app.UseAuthorization();
 app.MapControllers();

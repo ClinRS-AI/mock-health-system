@@ -336,6 +336,41 @@ public sealed class AuthSettingsEndpointTests : IClassFixture<IsolatedWebApplica
     }
 
     [Fact]
+    public async Task GetAuthSettings_ReturnsRateLimitDefaults()
+    {
+        var client = _factory.CreateClient();
+
+        var resp = await client.GetAsync("/api/v1/auth-settings");
+        resp.EnsureSuccessStatusCode();
+        var body = await resp.Content.ReadFromJsonAsync<AuthSettingsDto>();
+
+        Assert.NotNull(body);
+        Assert.False(body!.RateLimitEnabled);
+        Assert.Equal(10, body.RateLimitPerSecond);
+        Assert.Equal(300, body.RateLimitPerMinute);
+    }
+
+    [Fact]
+    public async Task UpdateAuthSettings_RoundTripsRateLimitValues()
+    {
+        var client = _factory.CreateClient();
+
+        var resp = await client.PutAsJsonAsync("/api/v1/auth-settings", new
+        {
+            mode = "None",
+            rateLimitEnabled = true,
+            rateLimitPerSecond = 5,
+            rateLimitPerMinute = 150
+        });
+
+        resp.EnsureSuccessStatusCode();
+        var body = await resp.Content.ReadFromJsonAsync<AuthSettingsDto>();
+        Assert.True(body!.RateLimitEnabled);
+        Assert.Equal(5, body.RateLimitPerSecond);
+        Assert.Equal(150, body.RateLimitPerMinute);
+    }
+
+    [Fact]
     public async Task UpdateAuthSettings_CreatesRow_WhenAuthSettingsTableEmpty()
     {
         // Remove the seeded AuthSettings row so the controller's "create" branch is exercised.
@@ -410,5 +445,8 @@ public sealed class AuthSettingsEndpointTests : IClassFixture<IsolatedWebApplica
         public int AccessTokenLifetimeMinutes { get; set; }
         public int RefreshTokenLifetimeDays { get; set; }
         public bool HasAnyTokens { get; set; }
+        public bool RateLimitEnabled { get; set; }
+        public int RateLimitPerSecond { get; set; }
+        public int RateLimitPerMinute { get; set; }
     }
 }

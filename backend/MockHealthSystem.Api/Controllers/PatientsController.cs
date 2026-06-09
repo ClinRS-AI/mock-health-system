@@ -16,6 +16,7 @@ namespace MockHealthSystem.Api.Controllers;
 [Authorize]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/patients")]
+[ProducesResponseType(StatusCodes.Status429TooManyRequests)]
 public sealed class PatientsController : ControllerBase
 {
     private readonly AppDbContext _db;

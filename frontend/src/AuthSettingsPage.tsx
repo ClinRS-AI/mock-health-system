@@ -12,6 +12,9 @@ type FormState = {
   oAuthClientSecret: string;
   accessTokenLifetimeMinutes: number;
   refreshTokenLifetimeDays: number;
+  rateLimitEnabled: boolean;
+  rateLimitPerSecond: number;
+  rateLimitPerMinute: number;
 };
 
 const defaultState: FormState = {
@@ -20,7 +23,10 @@ const defaultState: FormState = {
   oAuthClientId: "",
   oAuthClientSecret: "",
   accessTokenLifetimeMinutes: 60,
-  refreshTokenLifetimeDays: 30
+  refreshTokenLifetimeDays: 30,
+  rateLimitEnabled: false,
+  rateLimitPerSecond: 10,
+  rateLimitPerMinute: 300
 };
 
 function mask(value: string, visible: number = 4): string {
@@ -76,7 +82,10 @@ const AuthSettingsPage: React.FC = () => {
       oAuthClientId: settings.oAuthClientId ?? "",
       oAuthClientSecret: settings.oAuthClientSecret ?? "",
       accessTokenLifetimeMinutes: settings.accessTokenLifetimeMinutes,
-      refreshTokenLifetimeDays: settings.refreshTokenLifetimeDays
+      refreshTokenLifetimeDays: settings.refreshTokenLifetimeDays,
+      rateLimitEnabled: settings.rateLimitEnabled,
+      rateLimitPerSecond: settings.rateLimitPerSecond,
+      rateLimitPerMinute: settings.rateLimitPerMinute
     }));
   }
 
@@ -120,7 +129,10 @@ const AuthSettingsPage: React.FC = () => {
         oAuthClientId: form.mode === "OAuth" ? form.oAuthClientId : undefined,
         oAuthClientSecret: form.mode === "OAuth" ? form.oAuthClientSecret : undefined,
         accessTokenLifetimeMinutes: form.accessTokenLifetimeMinutes,
-        refreshTokenLifetimeDays: form.refreshTokenLifetimeDays
+        refreshTokenLifetimeDays: form.refreshTokenLifetimeDays,
+        rateLimitEnabled: form.rateLimitEnabled,
+        rateLimitPerSecond: form.rateLimitPerSecond,
+        rateLimitPerMinute: form.rateLimitPerMinute
       };
 
       const updated = await updateAuthSettings(payload);
@@ -401,6 +413,59 @@ const AuthSettingsPage: React.FC = () => {
               </div>
             </section>
           )}
+
+          <section className="space-y-4 border-t border-slate-100 pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-medium text-slate-700">Rate Limiting</h2>
+                <p className="text-xs text-slate-500">
+                  Enforce per-IP request limits on API endpoints. Admin interface requests are never counted.
+                </p>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.rateLimitEnabled}
+                  onChange={(e) => handleChange("rateLimitEnabled", e.target.checked)}
+                  disabled={isDemoMode}
+                  className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                />
+                <span className="text-xs font-medium text-slate-700">
+                  {form.rateLimitEnabled ? "Enabled" : "Disabled"}
+                </span>
+              </label>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label htmlFor="rateLimitPerSecond" className="block text-xs font-medium text-slate-700">
+                  Requests per second (per IP)
+                </label>
+                <input
+                  id="rateLimitPerSecond"
+                  type="number"
+                  min={1}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-50 disabled:text-slate-400"
+                  value={form.rateLimitPerSecond}
+                  onChange={(e) => handleChange("rateLimitPerSecond", Math.max(1, Number(e.target.value) || 1))}
+                  disabled={isDemoMode || !form.rateLimitEnabled}
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="rateLimitPerMinute" className="block text-xs font-medium text-slate-700">
+                  Requests per minute (per IP)
+                </label>
+                <input
+                  id="rateLimitPerMinute"
+                  type="number"
+                  min={1}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-50 disabled:text-slate-400"
+                  value={form.rateLimitPerMinute}
+                  onChange={(e) => handleChange("rateLimitPerMinute", Math.max(1, Number(e.target.value) || 1))}
+                  disabled={isDemoMode || !form.rateLimitEnabled}
+                />
+              </div>
+            </div>
+          </section>
 
           <section className="space-y-2 border-t border-slate-100 pt-4">
             {error && <div className="text-sm text-red-600">{error}</div>}
