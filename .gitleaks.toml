@@ -16,8 +16,6 @@ paths = [
 
 # Allowlist known placeholder strings used in docs and example configs
 regexes = [
-  # Postgres placeholder in .env.example
-  '''Password=baseline_password''',
   # Generic placeholder values used throughout example configs and docs
   '''change-me''',
   '''your-static-admin-secret''',
