@@ -37,3 +37,25 @@ TestResultsFullCoverage/
 # Claude Code — personal local settings only
 .claude/settings.local.json
 
+# Claude Code — auto-memory (personal session notes, not project docs)
+memory/
+
+# .NET — environment-specific appsettings that may contain real secrets
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Staging.json
+
+# Terraform — variable value files and state (may contain real secrets)
+*.tfvars
+*.tfvars.json
+terraform.tfstate
+terraform.tfstate.backup
+
+# Certificates and private keys
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+

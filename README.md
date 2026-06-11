@@ -1,8 +1,12 @@
-## Mock Health System
+# Mock Health System
 
-This repository is a **lightweight mock health system** to develop against. It provides API endpoints backed by a data repository, using:
+[![Build](https://github.com/ClinRS-AI/mock-health-system/actions/workflows/build.yml/badge.svg)](https://github.com/ClinRS-AI/mock-health-system/actions/workflows/build.yml)
 
-- **Backend**: .NET 10 Web API with a clean architecture (API, Application, Infrastructure layers).
+A self-hosted mock of the [Clinical Conductor (CC)](https://www.clinicalconductor.com) API, built by [ClinRS](https://clinrs.ai) for developers building CC integrations. It exposes the same API surface as the CC Public API, supports all CC authentication modes, generates synthetic clinical data on demand, and provides a web-based admin interface for configuration, monitoring, and data management.
+
+Use it to develop and test CC integrations on a local machine or shared server — without access to a production CC environment, without real patient data, and without slow environment onboarding. No clinical accuracy is claimed; this is a developer convenience tool, not a compliance-tested CC sandbox.
+
+- **Backend**: .NET 10 Web API (Api and Infrastructure layers, EF Core, ASP.NET Core middleware).
 - **Frontend**: React + Vite + TypeScript + Tailwind CSS.
 - **Database**: Postgres via Entity Framework Core.
 - **Configuration**: Environment variables loaded from `backend/.env` (and `frontend/.env` for the frontend).

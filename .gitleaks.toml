@@ -1,0 +1,24 @@
+# Gitleaks configuration for mock-health-system
+# https://github.com/gitleaks/gitleaks
+
+[extend]
+# Pull in all built-in rules
+useDefault = true
+
+[allowlist]
+description = "Known placeholder / example values in .env.example files and docs"
+
+# Allowlist specific paths that intentionally contain placeholder secrets
+paths = [
+  '''backend/\.env\.example''',
+  '''frontend/\.env\.example''',
+]
+
+# Allowlist known placeholder strings used in docs and example configs
+regexes = [
+  # Generic placeholder values used throughout example configs and docs
+  '''change-me''',
+  '''your-static-admin-secret''',
+  # Localhost URLs are not secrets
+  '''http://localhost''',
+]
