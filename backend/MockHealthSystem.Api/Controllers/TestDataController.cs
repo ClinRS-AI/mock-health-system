@@ -345,11 +345,23 @@ RESTART IDENTITY CASCADE;
             return BadRequest("No audit entry types found.");
         }
 
+        var patientIds = await _db.Patients
+            .AsNoTracking()
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+        var patientCount = patientIds.Count;
+
         if (!auditTypes.Any(a => string.Equals(a.Code, "PATIENT_CREATED", StringComparison.OrdinalIgnoreCase))
-            && await _db.Patients.CountAsync(cancellationToken) == 0)
+            && patientCount == 0)
         {
             return BadRequest(
                 "No patients exist yet. Either seed patients or add a PATIENT_CREATED audit entry type so new patients can be created.");
+        }
+
+        var eligibleTypes = GetEligibleAuditTypesForGeneration(auditTypes, patientCount).ToList();
+        if (eligibleTypes.Count == 0)
+        {
+            return BadRequest("No audit entry types can be applied given the current patient/staff data.");
         }
 
         var seed = request?.Seed;
@@ -368,26 +380,16 @@ RESTART IDENTITY CASCADE;
 
         for (var i = 0; i < count; i++)
         {
-            var patientCount = await _db.Patients.CountAsync(cancellationToken);
-            var eligibleTypes = GetEligibleAuditTypesForGeneration(auditTypes, patientCount).ToList();
-            if (eligibleTypes.Count == 0)
+            var currentEligible = GetEligibleAuditTypesForGeneration(auditTypes, patientCount).ToList();
+            if (currentEligible.Count == 0)
             {
                 return BadRequest("No audit entry types can be applied given the current patient/staff data.");
             }
 
-            var type = eligibleTypes[rng.Next(eligibleTypes.Count)];
+            var type = currentEligible[rng.Next(currentEligible.Count)];
             var code = type.Code.Trim();
 
-            var activeStaff = await _db.Staff
-                .Where(s => s.IsActive)
-                .OrderBy(s => s.Id)
-                .ToListAsync(cancellationToken);
-            if (activeStaff.Count == 0)
-            {
-                return BadRequest("No active staff found. Generate staff first.");
-            }
-
-            var staffActor = activeStaff[rng.Next(activeStaff.Count)];
+            var staffActor = staffRows[rng.Next(staffRows.Count)];
             var createdByUser = $"{staffActor.FirstName}.{staffActor.LastName}".ToLowerInvariant();
             var eventTime = now.AddSeconds(-rng.Next(0, 301));
 
@@ -407,12 +409,25 @@ RESTART IDENTITY CASCADE;
             if (string.Equals(code, "PATIENT_CREATED", StringComparison.OrdinalIgnoreCase))
             {
                 auditPatientKey = await CreateSyntheticPatientAsync(rng, cancellationToken);
+                patientIds.Add(auditPatientKey.Value);
+                patientCount++;
                 log.Details = $"{log.Details} Created patient Id {auditPatientKey}.";
                 log.PatientPKey = auditPatientKey;
             }
             else if (string.Equals(code, "PATIENT_DELETED", StringComparison.OrdinalIgnoreCase))
             {
-                var victim = await PickRandomPatientEntityAsync(rng, cancellationToken);
+                if (patientIds.Count == 0)
+                {
+                    i--;
+                    continue;
+                }
+
+                var idx = rng.Next(patientIds.Count);
+                var victimId = patientIds[idx];
+                patientIds.RemoveAt(idx);
+                patientCount--;
+
+                var victim = await _db.Patients.FindAsync(new object[] { victimId }, cancellationToken);
                 if (victim == null)
                 {
                     i--;
@@ -421,19 +436,17 @@ RESTART IDENTITY CASCADE;
 
                 log.PatientPKey = victim.Id;
                 log.Details = $"{log.Details} Deleted patient Id {victim.Id}.";
-
-                _db.AuditLogs.Add(log);
-                await _db.SaveChangesAsync(cancellationToken);
-
                 _db.Patients.Remove(victim);
-                await _db.SaveChangesAsync(cancellationToken);
-                IncrementBreakdown(type);
-                inserted++;
-                continue;
             }
             else if (string.Equals(code, "PATIENT_UPDATED", StringComparison.OrdinalIgnoreCase))
             {
-                var patient = await PickRandomPatientEntityAsync(rng, cancellationToken);
+                if (patientIds.Count == 0)
+                {
+                    i--;
+                    continue;
+                }
+
+                var patient = await _db.Patients.FindAsync(new object[] { patientIds[rng.Next(patientIds.Count)] }, cancellationToken);
                 if (patient == null)
                 {
                     i--;
@@ -447,7 +460,13 @@ RESTART IDENTITY CASCADE;
             }
             else if (string.Equals(code, "PATIENT_VIEWED", StringComparison.OrdinalIgnoreCase))
             {
-                var patient = await PickRandomPatientEntityAsync(rng, cancellationToken);
+                if (patientIds.Count == 0)
+                {
+                    i--;
+                    continue;
+                }
+
+                var patient = await _db.Patients.FindAsync(new object[] { patientIds[rng.Next(patientIds.Count)] }, cancellationToken);
                 if (patient == null)
                 {
                     i--;
@@ -474,9 +493,9 @@ RESTART IDENTITY CASCADE;
             }
             else
             {
-                if (code.Contains("PATIENT", StringComparison.OrdinalIgnoreCase))
+                if (code.Contains("PATIENT", StringComparison.OrdinalIgnoreCase) && patientIds.Count > 0)
                 {
-                    var patient = await PickRandomPatientEntityAsync(rng, cancellationToken);
+                    var patient = await _db.Patients.FindAsync(new object[] { patientIds[rng.Next(patientIds.Count)] }, cancellationToken);
                     if (patient != null)
                     {
                         log.PatientPKey = patient.Id;
@@ -492,10 +511,11 @@ RESTART IDENTITY CASCADE;
             }
 
             _db.AuditLogs.Add(log);
-            await _db.SaveChangesAsync(cancellationToken);
             IncrementBreakdown(type);
             inserted++;
         }
+
+        await _db.SaveChangesAsync(cancellationToken);
 
         var breakdown = insertedByType
             .Select(kv => new AuditTypeInsertCountDto
@@ -1046,21 +1066,6 @@ RESTART IDENTITY CASCADE;
         await _db.Patients.AddAsync(patient, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
         return patient.Id;
-    }
-
-    private async Task<Patient?> PickRandomPatientEntityAsync(Random rng, CancellationToken cancellationToken)
-    {
-        var count = await _db.Patients.CountAsync(cancellationToken);
-        if (count == 0)
-        {
-            return null;
-        }
-
-        var skip = rng.Next(count);
-        return await _db.Patients
-            .OrderBy(p => p.Id)
-            .Skip(skip)
-            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private static void MutatePatientForTest(Patient patient, Random rng)
