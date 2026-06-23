@@ -633,10 +633,10 @@ RESTART IDENTITY CASCADE;
         }
         else
         {
-            var emailTrim = email!.Trim();
+            var emailTrimLower = email!.Trim().ToLower();
             patient = await query.FirstOrDefaultAsync(
-                p => (p.PrimaryEmailAddress != null && p.PrimaryEmailAddress.StartsWith(emailTrim, StringComparison.OrdinalIgnoreCase))
-                    || (p.SecondaryEmailAddress != null && p.SecondaryEmailAddress.StartsWith(emailTrim, StringComparison.OrdinalIgnoreCase)),
+                p => (p.PrimaryEmailAddress != null && p.PrimaryEmailAddress.ToLower().StartsWith(emailTrimLower))
+                    || (p.SecondaryEmailAddress != null && p.SecondaryEmailAddress.ToLower().StartsWith(emailTrimLower)),
                 cancellationToken);
         }
 

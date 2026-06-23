@@ -35,6 +35,7 @@ TestResults/
 TestResultsFullCoverage/
 
 # Claude Code — personal local settings only
+.claude/settings.json
 .claude/settings.local.json
 
 # Claude Code — auto-memory (personal session notes, not project docs)
