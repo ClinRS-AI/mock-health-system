@@ -8,11 +8,11 @@ using Xunit;
 
 namespace MockHealthSystem.Tests.Integration;
 
-public sealed class HealthEndpointTests : IClassFixture<MockHealthSystemWebApplicationFactory>
+public sealed class HealthEndpointTests : IClassFixture<IsolatedWebApplicationFactory>
 {
-    private readonly MockHealthSystemWebApplicationFactory _factory;
+    private readonly IsolatedWebApplicationFactory _factory;
 
-    public HealthEndpointTests(MockHealthSystemWebApplicationFactory factory)
+    public HealthEndpointTests(IsolatedWebApplicationFactory factory)
     {
         _factory = factory;
     }

@@ -11,11 +11,11 @@ using Xunit;
 namespace MockHealthSystem.Tests.Integration;
 
 [Collection("EnvironmentMutating")]
-public sealed class MonitoringEndpointTests : IClassFixture<MockHealthSystemWebApplicationFactory>
+public sealed class MonitoringEndpointTests : IClassFixture<IsolatedWebApplicationFactory>
 {
-    private readonly MockHealthSystemWebApplicationFactory _factory;
+    private readonly IsolatedWebApplicationFactory _factory;
 
-    public MonitoringEndpointTests(MockHealthSystemWebApplicationFactory factory)
+    public MonitoringEndpointTests(IsolatedWebApplicationFactory factory)
     {
         _factory = factory;
     }

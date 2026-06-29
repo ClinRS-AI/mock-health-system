@@ -9,11 +9,11 @@ using Xunit;
 
 namespace MockHealthSystem.Tests.Integration;
 
-public sealed class AuthenticationModeTests : IClassFixture<MockHealthSystemWebApplicationFactory>
+public sealed class AuthenticationModeTests : IClassFixture<IsolatedWebApplicationFactory>
 {
-    private readonly MockHealthSystemWebApplicationFactory _factory;
+    private readonly IsolatedWebApplicationFactory _factory;
 
-    public AuthenticationModeTests(MockHealthSystemWebApplicationFactory factory)
+    public AuthenticationModeTests(IsolatedWebApplicationFactory factory)
     {
         _factory = factory;
     }
