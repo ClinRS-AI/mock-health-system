@@ -178,6 +178,42 @@ public sealed class PatientEndpointTests : IClassFixture<IsolatedWebApplicationF
         await ApiErrorAssertions.AssertApiErrorAsync(resp, HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task PatchPatient_WithPhone1_UpdatesSlot1AndLeavesSlot2Untouched()
+    {
+        await EnsureNoneModeAsync();
+        var patientId = await SeedPatientWithPhonesAsync("PhonePatch", "Test", phone1: "585-489-9509", phone2: "555-000-1111");
+        var client = _factory.CreateClient();
+
+        var resp = await client.PatchAsJsonAsync($"/api/v1/patients/{patientId}", new
+        {
+            phone1 = new { number = "585-489-1111" }
+        });
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<PatientDto>();
+        Assert.Equal("585-489-1111", body!.Phone1!.Number);
+        Assert.Equal("555-000-1111", body.Phone2!.Number);
+    }
+
+    [Fact]
+    public async Task PatchPatient_WithNoPhoneFields_LeavesAllPhoneSlotsUntouched()
+    {
+        await EnsureNoneModeAsync();
+        var patientId = await SeedPatientWithPhonesAsync("PhoneUntouched", "Test", phone1: "585-489-9509", phone2: "555-000-1111");
+        var client = _factory.CreateClient();
+
+        var resp = await client.PatchAsJsonAsync($"/api/v1/patients/{patientId}", new
+        {
+            city = "PatchedCity"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<PatientDto>();
+        Assert.Equal("585-489-9509", body!.Phone1!.Number);
+        Assert.Equal("555-000-1111", body.Phone2!.Number);
+    }
+
     // ---- DELETE /patients/{id} ----
 
     [Fact]
@@ -352,6 +388,31 @@ public sealed class PatientEndpointTests : IClassFixture<IsolatedWebApplicationF
         return patient.Id;
     }
 
+    private async Task<int> SeedPatientWithPhonesAsync(
+        string firstName, string lastName, string? phone1 = null, string? phone2 = null)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var patient = new Patient
+        {
+            FirstName = firstName,
+            LastName = lastName,
+            Status = "Active",
+            Uid = Guid.NewGuid()
+        };
+        db.Patients.Add(patient);
+        await db.SaveChangesAsync();
+
+        if (phone1 != null)
+            db.PatientPhones.Add(new PatientPhone { PatientId = patient.Id, Slot = 1, Number = phone1, RawNumber = new string(phone1.Where(char.IsDigit).ToArray()) });
+        if (phone2 != null)
+            db.PatientPhones.Add(new PatientPhone { PatientId = patient.Id, Slot = 2, Number = phone2, RawNumber = new string(phone2.Where(char.IsDigit).ToArray()) });
+        await db.SaveChangesAsync();
+
+        return patient.Id;
+    }
+
     // Minimal DTO for deserializing responses.
     private sealed class PatientDto
     {
@@ -363,6 +424,7 @@ public sealed class PatientEndpointTests : IClassFixture<IsolatedWebApplicationF
         public string? GenderCode { get; set; }
         public string? City { get; set; }
         public PhoneDto? Phone1 { get; set; }
+        public PhoneDto? Phone2 { get; set; }
     }
 
     private sealed class PhoneDto

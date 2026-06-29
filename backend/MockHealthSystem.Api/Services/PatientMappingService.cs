@@ -191,6 +191,30 @@ public static class PatientMappingService
         if (model.PrimaryInsurance != null) entity.PrimaryInsuranceJson = JsonSerializer.Serialize(model.PrimaryInsurance, JsonOptions);
         if (model.SecondaryInsurance != null) entity.SecondaryInsuranceJson = JsonSerializer.Serialize(model.SecondaryInsurance, JsonOptions);
         if (model.CustomFields != null) entity.CustomFieldsJson = JsonSerializer.Serialize(model.CustomFields, JsonOptions);
+        ApplyPhoneSlot(entity, 1, model.Phone1);
+        ApplyPhoneSlot(entity, 2, model.Phone2);
+        ApplyPhoneSlot(entity, 3, model.Phone3);
+        ApplyPhoneSlot(entity, 4, model.Phone4);
+    }
+
+    // Upserts in place rather than replacing, so an omitted slot in a PATCH body stays untouched.
+    // PUT (PatientsController.SyncPhonesFromEdit) deletes and recreates instead, since a full
+    // replace must clear slots the caller didn't send. Don't unify these without changing one
+    // of those semantics.
+    private static void ApplyPhoneSlot(Patient entity, int slot, PatientPhoneEditModel? model)
+    {
+        if (model == null) return;
+        var rawNumber = string.IsNullOrEmpty(model.Number) ? null : new string(model.Number.Where(char.IsDigit).ToArray());
+        var phone = entity.Phones.FirstOrDefault(p => p.Slot == slot);
+        if (phone == null)
+        {
+            entity.Phones.Add(new PatientPhone { PatientId = entity.Id, Slot = slot, Number = model.Number, RawNumber = rawNumber });
+        }
+        else
+        {
+            phone.Number = model.Number;
+            phone.RawNumber = rawNumber;
+        }
     }
 
     public static void ApplyStatus(Patient entity, PatientStatusEditModel model)

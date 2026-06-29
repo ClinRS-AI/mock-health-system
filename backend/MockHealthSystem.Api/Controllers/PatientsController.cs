@@ -409,6 +409,10 @@ public sealed class PatientsController : ControllerBase
         return CreatedAtAction(nameof(GetPatientSocialHistory), new { id, version = "1.0" }, entities.Select(PatientMappingService.ToViewModel));
     }
 
+    // PUT is a full replace: existing phones are deleted by the caller before this runs, so omitted
+    // slots end up cleared. PATCH (PatientMappingService.ApplyPhoneSlot) upserts in place instead,
+    // since a partial update must leave omitted slots untouched. Don't unify these without changing
+    // one of those semantics.
     private void SyncPhonesFromEdit(int patientId, PatientEditModel editModel)
     {
         if (editModel.Phone1 != null && !string.IsNullOrWhiteSpace(editModel.Phone1.Number))
