@@ -146,10 +146,12 @@ Send the same credentials you use for other protected endpoints (e.g. `Authoriza
 | Health     | `/api/v1/health`       | No             | GET; no auth. |
 | Auth       | `/api/v1/auth`         | No / Yes       | POST `/token`, POST `/refresh` (no auth). GET `/verify` requires auth; returns 200 if credentials are valid (useful to confirm Bearer, CCAPIKey, or OAuth token). |
 | Patients   | `/api/v1/patients`     | Yes*           | CRUD and sub-resources (devices, allergies, providers, etc.). *When mode is None, no auth. |
+| Studies    | `/api/v1/studies`      | Yes*           | CRUD plus structural sub-resources: Arms, Visits (+ visit-arm association), Milestones, Documents (+ status history), Notes, Roles/personnel, Protocol Versions, and study-type association. Contact info (IRB/CRO/lab/monitor/vendor) is embedded in the study record itself, not a separate endpoint. *When mode is None, no auth. |
+| Study lookups | `/api/v1/system/study-*` | Admin†     | Categories, subcategories, types, statuses, groups — Mock-Health-System admin configuration for populating study records, **not** part of the CC auth-mode-gated surface above. Categories/subcategories support GET/POST/PUT/DELETE; types/statuses/groups are read-only. †Same admin headers as [Admin endpoints](#admin-endpoints); open when no admin key is configured. |
 | Admin session | `/api/v1/admin/sessions` | No (mint)  | POST only; exchanges static admin key for JWT (see [Admin endpoints](#admin-endpoints)). |
 | Auth settings | `/api/v1/auth-settings` | Admin*   | GET/PUT; *requires `X-Admin-Key` or valid `X-Admin-Session` JWT if `AUTH_SETTINGS_ADMIN_KEY` is set. |
 | Monitoring | `/api/v1/monitoring`    | Admin*     | GET `/requests`, GET `/requests/{id}`, GET `/stats`; same admin headers when `AUTH_SETTINGS_ADMIN_KEY` is set. |
-| Test data  | `/api/v1/test-data`     | Admin*†    | Generate/reset/lookup test patients and related operations. *Same admin headers when key is set. †In `Development`, test-data routes skip admin checks (convenience for local workflows); use non-Development environments to enforce the key. **GET `/api/v1/test-data/soap/report-pkeys`** lists SOAP `pkey` values from `ReportQueryDefinitions` (PKeys only, no SQL). |
+| Test data  | `/api/v1/test-data`     | Admin*†    | Generate/reset/lookup test patients and studies, and related operations. *Same admin headers when key is set. †In `Development`, test-data routes skip admin checks (convenience for local workflows); use non-Development environments to enforce the key. **GET `/api/v1/test-data/soap/report-pkeys`** lists SOAP `pkey` values from `ReportQueryDefinitions` (PKeys only, no SQL). |
 
 ---
 
@@ -196,7 +198,8 @@ JWT signing: prefer env **`ADMIN_SESSION_SIGNING_KEY`** (or config `AdminSession
 
 ### Test data
 
-- Prefix **`/api/v1/test-data/`** (e.g. patients generate/reset/stats, staff, audit events).  
+- Prefix **`/api/v1/test-data/`** (e.g. patients generate/reset/stats, studies generate/reset/lookup/random/stats, staff, audit events).
+- Studies: `POST /studies/generate` (default 25, populates arms/visits/milestones/documents/notes/contacts; auto-seeds prerequisite sponsor/lookup rows if none exist), `POST /studies/reset` (`?includeLookups=true` also clears Sponsor/Division/Team and study lookup tables), `GET /studies/lookup` (by `id`/`uid`/`name`/`identifier`/`protocolNumber` fragment), `GET /studies/random`, `GET /studies/stats`.
 - When `AUTH_SETTINGS_ADMIN_KEY` is set, send the same admin headers as for auth settings **unless** the server runs in **`Development`**, in which case test-data endpoints skip admin validation for local convenience. Auth settings and monitoring **always** enforce the admin key when it is set.
 
 ---

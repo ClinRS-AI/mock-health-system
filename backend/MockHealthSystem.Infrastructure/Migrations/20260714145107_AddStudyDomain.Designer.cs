@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MockHealthSystem.Infrastructure.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MockHealthSystem.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714145107_AddStudyDomain")]
+    partial class AddStudyDomain
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -42,7 +45,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AllergenTypes", (string)null);
+                    b.ToTable("AllergenTypes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Allergy", b =>
@@ -67,7 +70,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("AllergenTypeId");
 
-                    b.ToTable("Allergies", (string)null);
+                    b.ToTable("Allergies");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.ApiRequestLog", b =>
@@ -127,7 +130,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StatusCode");
 
-                    b.ToTable("ApiRequestLogs", (string)null);
+                    b.ToTable("ApiRequestLogs");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.AuditEntryType", b =>
@@ -156,7 +159,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("AuditEntryTypes", (string)null);
+                    b.ToTable("AuditEntryTypes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.AuditLog", b =>
@@ -204,7 +207,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StaffPKey");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.AuthSettings", b =>
@@ -246,7 +249,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AuthSettings", (string)null);
+                    b.ToTable("AuthSettings");
 
                     b.HasData(
                         new
@@ -300,7 +303,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Token")
                         .IsUnique();
 
-                    b.ToTable("AuthTokens", (string)null);
+                    b.ToTable("AuthTokens");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Condition", b =>
@@ -337,7 +340,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("ConditionTypeId");
 
-                    b.ToTable("Conditions", (string)null);
+                    b.ToTable("Conditions");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.ConditionType", b =>
@@ -357,7 +360,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ConditionTypes", (string)null);
+                    b.ToTable("ConditionTypes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Device", b =>
@@ -374,7 +377,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Devices", (string)null);
+                    b.ToTable("Devices");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Gender", b =>
@@ -394,7 +397,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Genders", (string)null);
+                    b.ToTable("Genders");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Immunization", b =>
@@ -411,7 +414,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Immunizations", (string)null);
+                    b.ToTable("Immunizations");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.ImmunizationType", b =>
@@ -428,7 +431,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ImmunizationTypes", (string)null);
+                    b.ToTable("ImmunizationTypes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Medication", b =>
@@ -471,7 +474,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("MedicationTypeId");
 
-                    b.ToTable("Medications", (string)null);
+                    b.ToTable("Medications");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.MedicationRoute", b =>
@@ -488,7 +491,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("MedicationRoutes", (string)null);
+                    b.ToTable("MedicationRoutes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.MedicationSchedule", b =>
@@ -508,7 +511,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("MedicationSchedules", (string)null);
+                    b.ToTable("MedicationSchedules");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.MedicationType", b =>
@@ -528,7 +531,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("MedicationTypes", (string)null);
+                    b.ToTable("MedicationTypes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Patient", b =>
@@ -693,7 +696,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("PrimarySiteId");
 
-                    b.ToTable("Patients", (string)null);
+                    b.ToTable("Patients");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientAllergy", b =>
@@ -728,7 +731,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("PatientId");
 
-                    b.ToTable("PatientAllergies", (string)null);
+                    b.ToTable("PatientAllergies");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientCondition", b =>
@@ -763,7 +766,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("PatientId");
 
-                    b.ToTable("PatientConditions", (string)null);
+                    b.ToTable("PatientConditions");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientFamilyHistory", b =>
@@ -806,7 +809,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("PatientId");
 
-                    b.ToTable("PatientFamilyHistories", (string)null);
+                    b.ToTable("PatientFamilyHistories");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientImmunization", b =>
@@ -846,7 +849,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("PatientId");
 
-                    b.ToTable("PatientImmunizations", (string)null);
+                    b.ToTable("PatientImmunizations");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientMedicalDevice", b =>
@@ -872,7 +875,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("PatientId");
 
-                    b.ToTable("PatientMedicalDevices", (string)null);
+                    b.ToTable("PatientMedicalDevices");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientMedication", b =>
@@ -912,7 +915,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("RouteId");
 
-                    b.ToTable("PatientMedications", (string)null);
+                    b.ToTable("PatientMedications");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientMedicationCondition", b =>
@@ -927,7 +930,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("PatientConditionId");
 
-                    b.ToTable("PatientMedicationConditions", (string)null);
+                    b.ToTable("PatientMedicationConditions");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientPhone", b =>
@@ -957,7 +960,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("PatientId");
 
-                    b.ToTable("PatientPhones", (string)null);
+                    b.ToTable("PatientPhones");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientProcedure", b =>
@@ -995,7 +998,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("ProcedureId");
 
-                    b.ToTable("PatientProcedures", (string)null);
+                    b.ToTable("PatientProcedures");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientProvider", b =>
@@ -1027,7 +1030,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("ProviderId");
 
-                    b.ToTable("PatientProviders", (string)null);
+                    b.ToTable("PatientProviders");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.PatientSocialHistoryEntry", b =>
@@ -1053,7 +1056,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("SocialHistoryId");
 
-                    b.ToTable("PatientSocialHistoryEntries", (string)null);
+                    b.ToTable("PatientSocialHistoryEntries");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Procedure", b =>
@@ -1073,7 +1076,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Procedures", (string)null);
+                    b.ToTable("Procedures");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.ProtocolVersion", b =>
@@ -1128,7 +1131,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Uid")
                         .IsUnique();
 
-                    b.ToTable("ProtocolVersions", (string)null);
+                    b.ToTable("ProtocolVersions");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Provider", b =>
@@ -1162,7 +1165,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("ProviderTypeId");
 
-                    b.ToTable("Providers", (string)null);
+                    b.ToTable("Providers");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.ProviderType", b =>
@@ -1179,7 +1182,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ProviderTypes", (string)null);
+                    b.ToTable("ProviderTypes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Relation", b =>
@@ -1196,7 +1199,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Relations", (string)null);
+                    b.ToTable("Relations");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.ReportQueryDefinition", b =>
@@ -1231,7 +1234,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("PKey")
                         .IsUnique();
 
-                    b.ToTable("ReportQueryDefinitions", (string)null);
+                    b.ToTable("ReportQueryDefinitions");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Site", b =>
@@ -1251,7 +1254,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Sites", (string)null);
+                    b.ToTable("Sites");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.SocialHistory", b =>
@@ -1273,7 +1276,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("SocialHistories", (string)null);
+                    b.ToTable("SocialHistories");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Sponsor", b =>
@@ -1296,7 +1299,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Uid")
                         .IsUnique();
 
-                    b.ToTable("Sponsors", (string)null);
+                    b.ToTable("Sponsors");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.SponsorDivision", b =>
@@ -1318,7 +1321,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("SponsorId");
 
-                    b.ToTable("SponsorDivisions", (string)null);
+                    b.ToTable("SponsorDivisions");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.SponsorTeam", b =>
@@ -1340,7 +1343,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("SponsorDivisionId");
 
-                    b.ToTable("SponsorTeams", (string)null);
+                    b.ToTable("SponsorTeams");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Staff", b =>
@@ -1369,7 +1372,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Staff", (string)null);
+                    b.ToTable("Staff");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Study", b =>
@@ -1519,7 +1522,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Uid")
                         .IsUnique();
 
-                    b.ToTable("Studies", (string)null);
+                    b.ToTable("Studies");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyArm", b =>
@@ -1570,7 +1573,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Uid")
                         .IsUnique();
 
-                    b.ToTable("StudyArms", (string)null);
+                    b.ToTable("StudyArms");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyCategory", b =>
@@ -1593,7 +1596,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("StudyCategories", (string)null);
+                    b.ToTable("StudyCategories");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyContact", b =>
@@ -1628,7 +1631,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("StudyId", "ContactType", "Slot")
                         .IsUnique();
 
-                    b.ToTable("StudyContacts", (string)null);
+                    b.ToTable("StudyContacts");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyCustomFieldValue", b =>
@@ -1653,7 +1656,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyCustomFieldValues", (string)null);
+                    b.ToTable("StudyCustomFieldValues");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyDocument", b =>
@@ -1702,7 +1705,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Uid")
                         .IsUnique();
 
-                    b.ToTable("StudyDocuments", (string)null);
+                    b.ToTable("StudyDocuments");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyDocumentStatusHistory", b =>
@@ -1735,7 +1738,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StudyDocumentId");
 
-                    b.ToTable("StudyDocumentStatusHistories", (string)null);
+                    b.ToTable("StudyDocumentStatusHistories");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyGroup", b =>
@@ -1755,7 +1758,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("StudyGroups", (string)null);
+                    b.ToTable("StudyGroups");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyLeadership", b =>
@@ -1785,7 +1788,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyLeaderships", (string)null);
+                    b.ToTable("StudyLeaderships");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyMilestone", b =>
@@ -1857,7 +1860,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyMilestones", (string)null);
+                    b.ToTable("StudyMilestones");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyNote", b =>
@@ -1898,7 +1901,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyNotes", (string)null);
+                    b.ToTable("StudyNotes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyRole", b =>
@@ -1929,7 +1932,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyRoles", (string)null);
+                    b.ToTable("StudyRoles");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyRoleStaff", b =>
@@ -1947,7 +1950,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StaffId");
 
-                    b.ToTable("StudyRoleStaffs", (string)null);
+                    b.ToTable("StudyRoleStaffs");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyStatusType", b =>
@@ -1982,7 +1985,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("StudyStatusTypes", (string)null);
+                    b.ToTable("StudyStatusTypes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyStudyType", b =>
@@ -1997,7 +2000,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StudyTypeId");
 
-                    b.ToTable("StudyStudyTypes", (string)null);
+                    b.ToTable("StudyStudyTypes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudySubcategory", b =>
@@ -2022,7 +2025,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StudyCategoryId");
 
-                    b.ToTable("StudySubcategories", (string)null);
+                    b.ToTable("StudySubcategories");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyTargetDate", b =>
@@ -2053,7 +2056,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("StudyId");
 
-                    b.ToTable("StudyTargetDates", (string)null);
+                    b.ToTable("StudyTargetDates");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyType", b =>
@@ -2082,7 +2085,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("StudyTypes", (string)null);
+                    b.ToTable("StudyTypes");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyVisit", b =>
@@ -2163,7 +2166,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.HasIndex("Uid")
                         .IsUnique();
 
-                    b.ToTable("StudyVisits", (string)null);
+                    b.ToTable("StudyVisits");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.StudyVisitArm", b =>
@@ -2178,7 +2181,7 @@ namespace MockHealthSystem.Infrastructure.Migrations
 
                     b.HasIndex("ArmId");
 
-                    b.ToTable("StudyVisitArms", (string)null);
+                    b.ToTable("StudyVisitArms");
                 });
 
             modelBuilder.Entity("MockHealthSystem.Infrastructure.Data.Entities.Allergy", b =>
