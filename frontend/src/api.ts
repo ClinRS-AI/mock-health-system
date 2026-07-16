@@ -370,3 +370,121 @@ export async function updateTestPatient(
   );
   return response.data;
 }
+
+// Study test data management
+
+export interface GenerateStudiesOptions {
+  totalCount?: number;
+  seed?: number;
+}
+
+export interface GenerateStudiesResult {
+  totalRequested: number;
+  totalInserted: number;
+  armsInserted: number;
+  visitsInserted: number;
+  milestonesInserted: number;
+  documentsInserted: number;
+  notesInserted: number;
+  totalAfter: number;
+}
+
+export interface StudyStatusCount {
+  statusName: string;
+  count: number;
+}
+
+export interface StudySponsorCount {
+  sponsorName: string;
+  count: number;
+}
+
+export interface StudyTestDataStats {
+  studyCount: number;
+  armCount: number;
+  visitCount: number;
+  milestoneCount: number;
+  documentCount: number;
+  studiesByStatus: StudyStatusCount[];
+  studiesBySponsor: StudySponsorCount[];
+}
+
+export interface StudyContactEntry {
+  type: string;
+  slot: number;
+  name?: string | null;
+  reference?: string | null;
+  comment?: string | null;
+}
+
+export interface StudyViewModel {
+  id: number;
+  uid: string;
+  name: string;
+  title?: string | null;
+  identifier?: string | null;
+  protocolNumber?: string | null;
+  indIdeNumber?: string | null;
+  nctNumber?: string | null;
+  phase?: string | null;
+  status: string;
+  category?: string | null;
+  subcategory?: string | null;
+  studyGroup?: string | null;
+  comment?: string | null;
+  description?: string | null;
+  launchYear?: number | null;
+  studyCurrency?: string | null;
+  sponsorTeam: { id: number; name?: string | null };
+  managingSite?: { id: number; uid?: string | null; name?: string | null } | null;
+  finances?: { financeType?: string | null } | null;
+  opportunityDetails?: { opportunityLevel?: string | null } | null;
+  contacts: StudyContactEntry[];
+  createdOn: string;
+  lastUpdatedOn: string;
+}
+
+export async function generateTestStudies(
+  options: GenerateStudiesOptions
+): Promise<GenerateStudiesResult> {
+  const response = await api.post<GenerateStudiesResult>(
+    "/api/v1/test-data/studies/generate",
+    options
+  );
+  return response.data;
+}
+
+export async function resetTestStudies(includeLookups?: boolean): Promise<void> {
+  const suffix = includeLookups ? "?includeLookups=true" : "";
+  await api.post(`/api/v1/test-data/studies/reset${suffix}`, {});
+}
+
+export async function lookupTestStudy(params: {
+  id?: number;
+  uid?: string;
+  name?: string;
+  identifier?: string;
+  protocolNumber?: string;
+}): Promise<StudyViewModel> {
+  const searchParams = new URLSearchParams();
+  if (params.id != null) searchParams.set("id", String(params.id));
+  if (params.uid) searchParams.set("uid", params.uid);
+  if (params.name) searchParams.set("name", params.name);
+  if (params.identifier) searchParams.set("identifier", params.identifier);
+  if (params.protocolNumber) searchParams.set("protocolNumber", params.protocolNumber);
+
+  const response = await api.get<StudyViewModel>(
+    `/api/v1/test-data/studies/lookup?${searchParams.toString()}`
+  );
+  return response.data;
+}
+
+export async function getRandomTestStudy(): Promise<StudyViewModel> {
+  const response = await api.get<StudyViewModel>("/api/v1/test-data/studies/random");
+  return response.data;
+}
+
+export async function getStudyTestDataStats(): Promise<StudyTestDataStats> {
+  const response = await api.get<StudyTestDataStats>("/api/v1/test-data/studies/stats");
+  return response.data;
+}

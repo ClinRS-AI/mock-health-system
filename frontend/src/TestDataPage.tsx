@@ -19,7 +19,16 @@ import {
   getPatientTestDataStats,
   getSoapReportPkeys,
   getConfiguredApiBaseUrl,
-  type PatientTestDataStats
+  type PatientTestDataStats,
+  generateTestStudies,
+  resetTestStudies,
+  lookupTestStudy,
+  getRandomTestStudy,
+  getStudyTestDataStats,
+  type GenerateStudiesOptions,
+  type GenerateStudiesResult,
+  type StudyViewModel,
+  type StudyTestDataStats
 } from "./api";
 import AdminSessionBanner from "./AdminSessionBanner";
 import { useAdminSession } from "./AdminSessionContext";
@@ -71,6 +80,18 @@ const TestDataPage: React.FC = () => {
   const [savingLookupMode, setSavingLookupMode] = useState<"none" | "save" | "audit">("none");
   const [error, setError] = useState<string | null>(null);
 
+  const [studiesGenerateOptions, setStudiesGenerateOptions] = useState<GenerateStudiesOptions>({
+    totalCount: 25
+  });
+  const [studiesGenerateResult, setStudiesGenerateResult] = useState<GenerateStudiesResult | null>(null);
+  const [studiesStats, setStudiesStats] = useState<StudyTestDataStats | null>(null);
+  const [loadingGenerateStudies, setLoadingGenerateStudies] = useState(false);
+  const [loadingResetStudies, setLoadingResetStudies] = useState(false);
+  const [studiesLookupForm, setStudiesLookupForm] = useState({ name: "", identifier: "", protocolNumber: "" });
+  const [studiesLookupResult, setStudiesLookupResult] = useState<StudyViewModel | null>(null);
+  const [studiesLookupNotFound, setStudiesLookupNotFound] = useState(false);
+  const [loadingStudiesLookup, setLoadingStudiesLookup] = useState(false);
+
   async function loadStats() {
     try {
       const data = await getPatientTestDataStats();
@@ -79,6 +100,16 @@ const TestDataPage: React.FC = () => {
       console.error(err);
       // Don't overwrite an existing, more specific error; just keep stats null.
       setStats(null);
+    }
+  }
+
+  async function loadStudiesStats() {
+    try {
+      const data = await getStudyTestDataStats();
+      setStudiesStats(data);
+    } catch (err) {
+      console.error(err);
+      setStudiesStats(null);
     }
   }
 
@@ -106,6 +137,7 @@ const TestDataPage: React.FC = () => {
     } else {
       void loadStats();
       void loadSoapPkeys();
+      void loadStudiesStats();
     }
   }, [hasSession, isDemoMode, isProbeSettled]);
 
@@ -141,6 +173,102 @@ const TestDataPage: React.FC = () => {
       setGenerateResult(null);
     } finally {
       setLoadingGenerate(false);
+    }
+  }
+
+  async function handleResetStudies() {
+    if (isDemoMode) return;
+    try {
+      setLoadingResetStudies(true);
+      setError(null);
+      setStudiesGenerateResult(null);
+
+      await resetTestStudies();
+      await loadStudiesStats();
+    } catch (err) {
+      console.error(err);
+      setError("Unable to reset studies. Check the admin key and backend.");
+    } finally {
+      setLoadingResetStudies(false);
+    }
+  }
+
+  async function handleGenerateStudies() {
+    if (isDemoMode) return;
+    try {
+      setLoadingGenerateStudies(true);
+      setError(null);
+
+      const result = await generateTestStudies(studiesGenerateOptions);
+      setStudiesGenerateResult(result);
+      await loadStudiesStats();
+    } catch (err) {
+      console.error(err);
+      setError("Unable to generate studies. Check the admin key and backend.");
+      setStudiesGenerateResult(null);
+    } finally {
+      setLoadingGenerateStudies(false);
+    }
+  }
+
+  async function handleLookupStudy(e: React.FormEvent) {
+    e.preventDefault();
+    if (isDemoMode) return;
+    const nameTrim = studiesLookupForm.name.trim();
+    const identifierTrim = studiesLookupForm.identifier.trim();
+    const protocolTrim = studiesLookupForm.protocolNumber.trim();
+    const params = nameTrim
+      ? { name: nameTrim }
+      : identifierTrim
+        ? { identifier: identifierTrim }
+        : protocolTrim
+          ? { protocolNumber: protocolTrim }
+          : undefined;
+    if (!params) return;
+    try {
+      setLoadingStudiesLookup(true);
+      setError(null);
+      setStudiesLookupResult(null);
+      setStudiesLookupNotFound(false);
+
+      const result = await lookupTestStudy(params);
+      setStudiesLookupResult(result);
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 404) {
+        setStudiesLookupNotFound(true);
+        setStudiesLookupResult(null);
+      } else {
+        console.error(err);
+        setError("Unable to lookup study. Check the admin key and backend.");
+        setStudiesLookupResult(null);
+      }
+    } finally {
+      setLoadingStudiesLookup(false);
+    }
+  }
+
+  async function handleGetRandomStudy() {
+    if (isDemoMode) return;
+    try {
+      setLoadingStudiesLookup(true);
+      setError(null);
+      setStudiesLookupNotFound(false);
+
+      const result = await getRandomTestStudy();
+      setStudiesLookupResult(result);
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 404) {
+        setStudiesLookupNotFound(true);
+        setStudiesLookupResult(null);
+      } else {
+        console.error(err);
+        setError("Unable to get a random study. Check the admin key and backend.");
+        setStudiesLookupResult(null);
+      }
+    } finally {
+      setLoadingStudiesLookup(false);
     }
   }
 
@@ -584,6 +712,230 @@ const TestDataPage: React.FC = () => {
             </div>
           )}
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium text-slate-700">Studies</h2>
+          <p className="text-xs text-slate-500">
+            Generate synthetic studies (with populated arms, visits, milestones, documents, and
+            notes). Independent of patient data — reset clears only Study-domain tables.
+          </p>
+        </div>
+      </section>
+
+      {studiesStats && (
+        <section className="grid gap-4 md:grid-cols-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-xs font-medium text-slate-500">Study count</p>
+            <p className="mt-1 text-xl font-semibold text-slate-800 tabular-nums">
+              {studiesStats.studyCount}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-xs font-medium text-slate-500">Arms</p>
+            <p className="mt-1 text-xl font-semibold text-slate-800 tabular-nums">
+              {studiesStats.armCount}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-xs font-medium text-slate-500">Visits</p>
+            <p className="mt-1 text-xl font-semibold text-slate-800 tabular-nums">
+              {studiesStats.visitCount}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-xs font-medium text-slate-500 mb-1">Studies by status</p>
+            {studiesStats.studiesByStatus.length > 0 ? (
+              <ul className="max-h-28 overflow-auto space-y-1 text-xs text-slate-700">
+                {studiesStats.studiesByStatus.map((s) => (
+                  <li key={s.statusName} className="flex justify-between gap-2">
+                    <span className="truncate">{s.statusName}</span>
+                    <span className="font-semibold tabular-nums">{s.count}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-400">No studies yet.</p>
+            )}
+          </div>
+        </section>
+      )}
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-slate-800">Reset studies</h3>
+          <p className="text-xs text-slate-500">
+            Truncate all Study-domain tables. Use Generate studies to repopulate with a consistent
+            dataset. Patient data is untouched.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleResetStudies()}
+            disabled={loadingResetStudies}
+            className="inline-flex items-center justify-center rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:opacity-70"
+          >
+            {loadingResetStudies ? "Resetting…" : "Reset study data"}
+          </button>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-slate-800">Generate studies</h3>
+          <p className="text-xs text-slate-500">
+            Generate synthetic studies with populated structural sub-resources (arms, visits,
+            milestones, documents, notes).
+          </p>
+
+          <div className="space-y-2 text-xs text-slate-700">
+            <label className="block">
+              <span className="block mb-1">Total studies to generate</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                value={studiesGenerateOptions.totalCount ?? ""}
+                onChange={(e) =>
+                  setStudiesGenerateOptions((prev) => ({
+                    ...prev,
+                    totalCount: e.target.value === "" ? undefined : Number(e.target.value)
+                  }))
+                }
+              />
+            </label>
+
+            <label className="block">
+              <span className="block mb-1">Seed (optional, for reproducible data)</span>
+              <input
+                type="number"
+                className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                value={studiesGenerateOptions.seed ?? ""}
+                onChange={(e) =>
+                  setStudiesGenerateOptions((prev) => ({
+                    ...prev,
+                    seed: e.target.value === "" ? undefined : Number(e.target.value)
+                  }))
+                }
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void handleGenerateStudies()}
+            disabled={loadingGenerateStudies}
+            className="inline-flex items-center justify-center rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-70"
+          >
+            {loadingGenerateStudies ? "Generating…" : "Generate studies"}
+          </button>
+
+          {studiesGenerateResult && (
+            <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 space-y-1">
+              <div>
+                Requested:{" "}
+                <span className="font-semibold tabular-nums">
+                  {studiesGenerateResult.totalRequested}
+                </span>{" "}
+                studies
+              </div>
+              <div>
+                Inserted:{" "}
+                <span className="font-semibold tabular-nums">
+                  {studiesGenerateResult.totalInserted}
+                </span>{" "}
+                (arms {studiesGenerateResult.armsInserted}, visits{" "}
+                {studiesGenerateResult.visitsInserted}, milestones{" "}
+                {studiesGenerateResult.milestonesInserted}, documents{" "}
+                {studiesGenerateResult.documentsInserted}, notes {studiesGenerateResult.notesInserted})
+              </div>
+              <div>
+                Total after generation:{" "}
+                <span className="font-semibold tabular-nums">
+                  {studiesGenerateResult.totalAfter}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white">
+        <details className="group">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+            <span className="inline-flex items-center gap-2">
+              <span className="text-slate-400 group-open:rotate-90 transition-transform" aria-hidden>
+                ▶
+              </span>
+              Lookup study
+            </span>
+          </summary>
+          <div className="border-t border-slate-200 px-4 py-3 space-y-3">
+            <p className="text-xs text-slate-500">
+              Find a study by name, identifier, or protocol number fragment (provide one). Uses the
+              first value provided.
+            </p>
+            <form onSubmit={handleLookupStudy} className="space-y-3 max-w-sm">
+              <label className="block text-xs text-slate-700">
+                <span className="block mb-1">Name</span>
+                <input
+                  type="text"
+                  placeholder="e.g. Acme Oncology"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  value={studiesLookupForm.name}
+                  onChange={(e) => setStudiesLookupForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </label>
+              <label className="block text-xs text-slate-700">
+                <span className="block mb-1">Identifier</span>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  value={studiesLookupForm.identifier}
+                  onChange={(e) => setStudiesLookupForm((f) => ({ ...f, identifier: e.target.value }))}
+                />
+              </label>
+              <label className="block text-xs text-slate-700">
+                <span className="block mb-1">Protocol number</span>
+                <input
+                  type="text"
+                  placeholder="e.g. PROTO-2026"
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  value={studiesLookupForm.protocolNumber}
+                  onChange={(e) =>
+                    setStudiesLookupForm((f) => ({ ...f, protocolNumber: e.target.value }))
+                  }
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={loadingStudiesLookup}
+                className="inline-flex items-center justify-center rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 disabled:opacity-70"
+              >
+                {loadingStudiesLookup ? "Looking up…" : "Lookup"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleGetRandomStudy()}
+                disabled={loadingStudiesLookup}
+                className="ml-2 inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 disabled:opacity-70"
+              >
+                {loadingStudiesLookup ? "Loading…" : "Get random"}
+              </button>
+            </form>
+            {studiesLookupNotFound && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                No study found for the given name, identifier, or protocol number.
+              </div>
+            )}
+            {studiesLookupResult && (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 space-y-2">
+                <div className="font-semibold">Study record</div>
+                <pre className="max-h-[420px] overflow-auto rounded bg-slate-900 p-2 text-[11px] text-slate-100 whitespace-pre-wrap">
+                  {JSON.stringify(studiesLookupResult, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </details>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
