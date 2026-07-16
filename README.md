@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/ClinRS-AI/mock-health-system/actions/workflows/build.yml/badge.svg)](https://github.com/ClinRS-AI/mock-health-system/actions/workflows/build.yml)
 
-A self-hosted mock of the [Clinical Conductor (CC)](https://www.clinicalconductor.com) API, built by [ClinRS](https://clinrs.ai) for developers building CC integrations. It exposes the same API surface as the CC Public API, supports all CC authentication modes, generates synthetic clinical data on demand, and provides a web-based admin interface for configuration, monitoring, and data management.
+A self-hosted mock of the [Clinical Conductor (CC)](https://www.clinicalconductor.com) API, built by [ClinRS](https://clinrs.ai) for developers building CC integrations. It exposes the same API surface as the CC Public API — currently the **Patient** domain (demographics and clinical sub-resources) and the **Study** domain (protocol/study records with arms, visits, milestones, documents, notes, personnel, and protocol versions) — supports all CC authentication modes, generates synthetic clinical data on demand, and provides a web-based admin interface for configuration, monitoring, and data management.
 
 Use it to develop and test CC integrations on a local machine or shared server — without access to a production CC environment, without real patient data, and without slow environment onboarding. No clinical accuracy is claimed; this is a developer convenience tool, not a compliance-tested CC sandbox.
 
