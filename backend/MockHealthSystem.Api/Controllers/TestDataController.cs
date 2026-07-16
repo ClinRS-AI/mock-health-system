@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MockHealthSystem.Api.Models.Patients;
+using MockHealthSystem.Api.Models.Studies;
 using MockHealthSystem.Api.Services;
 using MockHealthSystem.Api.Services.AdminSession;
 using MockHealthSystem.Api.Swagger;
@@ -13,7 +14,7 @@ using MockHealthSystem.Infrastructure.Data.Entities;
 namespace MockHealthSystem.Api.Controllers;
 
 /// <summary>
-/// Endpoints for generating and resetting patient test data (including near-duplicates).
+/// Endpoints for generating and resetting patient and study test data (including near-duplicates).
 /// When <c>AUTH_SETTINGS_ADMIN_KEY</c> is set, requires <c>X-Admin-Key</c> or valid <c>X-Admin-Session</c> JWT
 /// unless <c>ASPNETCORE_ENVIRONMENT</c> is Development (admin checks bypassed for local convenience on this controller only).
 /// </summary>
@@ -32,6 +33,8 @@ public sealed class TestDataController : ControllerBase
         _db = db;
         _adminRequestValidator = adminRequestValidator;
     }
+
+    private static string NormalizeForLookup(string value) => value.Trim().ToLower();
 
     /// <summary>
     /// Generates synthetic patients and near-duplicate records for testing.
@@ -633,7 +636,7 @@ RESTART IDENTITY CASCADE;
         }
         else
         {
-            var emailTrimLower = email!.Trim().ToLower();
+            var emailTrimLower = NormalizeForLookup(email!);
             patient = await query.FirstOrDefaultAsync(
                 p => (p.PrimaryEmailAddress != null && p.PrimaryEmailAddress.ToLower().StartsWith(emailTrimLower))
                     || (p.SecondaryEmailAddress != null && p.SecondaryEmailAddress.ToLower().StartsWith(emailTrimLower)),
@@ -1223,6 +1226,341 @@ RESTART IDENTITY CASCADE;
     public sealed class SoapReportPkeysDto
     {
         public IReadOnlyList<string> Pkeys { get; set; } = Array.Empty<string>();
+    }
+
+    // ==================== Study test data ====================
+
+    /// <summary>
+    /// Generates synthetic studies with populated structural sub-resources. Auto-seeds prerequisite
+    /// lookup rows (Sponsor/Division/Team, Site, StudyCategory/Subcategory, StudyStatusType,
+    /// StudyGroup) if none exist yet. See research.md's "StudyFakerService mirrors
+    /// PatientFakerService's shape" decision for the prerequisite-generation ordering rationale.
+    /// </summary>
+    /// <param name="request">Generation options. Defaults: 25 studies.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpPost("studies/generate")]
+    [ProducesResponseType(typeof(GenerateStudiesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GenerateStudiesAsync(
+        [FromBody] GenerateStudiesRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        var totalCount = request?.TotalCount ?? 25;
+        if (totalCount <= 0)
+        {
+            return BadRequest("TotalCount must be greater than zero.");
+        }
+
+        const int maxCount = 500;
+        if (totalCount > maxCount)
+        {
+            return BadRequest($"TotalCount must not exceed {maxCount}.");
+        }
+
+        var sponsorTeamIds = await EnsureSponsorTeamsAsync(cancellationToken);
+        var siteIds = await _db.Sites.Select(s => s.Id).ToListAsync(cancellationToken);
+        var staffIds = await _db.Staff.Where(s => s.IsActive).Select(s => s.Id).ToListAsync(cancellationToken);
+        var categories = await EnsureStudyCategoriesAsync(cancellationToken);
+        var subcategories = await _db.StudySubcategories.Select(s => s.Name).ToListAsync(cancellationToken);
+        var statuses = await EnsureStudyStatusesAsync(cancellationToken);
+        var groups = await EnsureStudyGroupsAsync(cancellationToken);
+
+        var fakerService = new StudyFakerService(request?.Seed, sponsorTeamIds, siteIds, staffIds, categories, subcategories, statuses, groups);
+        var studies = fakerService.CreateStudies(totalCount);
+
+        await _db.Studies.AddRangeAsync(studies, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Ok(new GenerateStudiesResponse
+        {
+            TotalRequested = totalCount,
+            TotalInserted = studies.Count,
+            ArmsInserted = studies.Sum(s => s.Arms.Count),
+            VisitsInserted = studies.Sum(s => s.Visits.Count),
+            MilestonesInserted = studies.Sum(s => s.Milestones.Count),
+            DocumentsInserted = studies.Sum(s => s.Documents.Count),
+            NotesInserted = studies.Sum(s => s.Notes.Count),
+            TotalAfter = await _db.Studies.CountAsync(cancellationToken)
+        });
+    }
+
+    /// <summary>
+    /// Resets all Study-domain data using TRUNCATE. Does not affect Patient data or Sites/Staff.
+    /// </summary>
+    /// <param name="includeLookups">When true, also clears Sponsor/Division/Team and Study lookup tables for a full clean slate.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpPost("studies/reset")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ResetStudiesAsync([FromQuery] bool includeLookups, CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        const string truncateStudySql = """
+TRUNCATE TABLE
+    "StudyStudyTypes",
+    "StudyRoleStaffs",
+    "StudyRoles",
+    "StudyVisitArms",
+    "StudyDocumentStatusHistories",
+    "StudyDocuments",
+    "StudyMilestones",
+    "StudyNotes",
+    "StudyContacts",
+    "StudyTargetDates",
+    "StudyLeaderships",
+    "StudyCustomFieldValues",
+    "ProtocolVersions",
+    "StudyArms",
+    "StudyVisits",
+    "Studies"
+RESTART IDENTITY CASCADE;
+""";
+        await _db.Database.ExecuteSqlRawAsync(truncateStudySql, cancellationToken);
+
+        if (includeLookups)
+        {
+            const string truncateLookupSql = """
+TRUNCATE TABLE
+    "SponsorTeams",
+    "SponsorDivisions",
+    "Sponsors",
+    "StudySubcategories",
+    "StudyCategories",
+    "StudyStatusTypes",
+    "StudyTypes",
+    "StudyGroups"
+RESTART IDENTITY CASCADE;
+""";
+            await _db.Database.ExecuteSqlRawAsync(truncateLookupSql, cancellationToken);
+        }
+
+        return Ok();
+    }
+
+    /// <summary>
+    /// Looks up a single study by ID, UID, name, identifier, or protocol number (first match wins).
+    /// </summary>
+    [HttpGet("studies/lookup")]
+    [ProducesResponseType(typeof(StudyViewModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> LookupStudyAsync(
+        [FromQuery] int? id,
+        [FromQuery] Guid? uid,
+        [FromQuery] string? name,
+        [FromQuery] string? identifier,
+        [FromQuery] string? protocolNumber,
+        CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        if (!id.HasValue && !uid.HasValue && string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(identifier) && string.IsNullOrWhiteSpace(protocolNumber))
+        {
+            return BadRequest("Provide one of: id, uid, name, identifier, or protocolNumber.");
+        }
+
+        var query = StudyIncludeAllQuery();
+
+        Study? study;
+        if (id.HasValue)
+        {
+            study = await query.FirstOrDefaultAsync(s => s.Id == id.Value, cancellationToken);
+        }
+        else if (uid.HasValue)
+        {
+            study = await query.FirstOrDefaultAsync(s => s.Uid == uid.Value, cancellationToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(name))
+        {
+            var nameTrimLower = NormalizeForLookup(name);
+            study = await query.FirstOrDefaultAsync(s => s.Name.ToLower().StartsWith(nameTrimLower), cancellationToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(identifier))
+        {
+            var identifierTrimLower = NormalizeForLookup(identifier);
+            study = await query.FirstOrDefaultAsync(s => s.Identifier != null && s.Identifier.ToLower().StartsWith(identifierTrimLower), cancellationToken);
+        }
+        else
+        {
+            var protocolTrimLower = NormalizeForLookup(protocolNumber!);
+            study = await query.FirstOrDefaultAsync(s => s.ProtocolNumber != null && s.ProtocolNumber.ToLower().StartsWith(protocolTrimLower), cancellationToken);
+        }
+
+        if (study == null) return NotFound();
+        return Ok(StudyMappingService.ToViewModel(study));
+    }
+
+    /// <summary>Looks up a random study record from the database.</summary>
+    [HttpGet("studies/random")]
+    [ProducesResponseType(typeof(StudyViewModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetRandomStudyAsync(CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        var studyCount = await _db.Studies.CountAsync(cancellationToken);
+        if (studyCount == 0) return NotFound();
+
+        var randomIndex = Random.Shared.Next(studyCount);
+        var study = await StudyIncludeAllQuery().OrderBy(s => s.Id).Skip(randomIndex).FirstOrDefaultAsync(cancellationToken);
+        return study == null ? NotFound() : Ok(StudyMappingService.ToViewModel(study));
+    }
+
+    /// <summary>Returns summary statistics for Study test data.</summary>
+    [HttpGet("studies/stats")]
+    [ProducesResponseType(typeof(StudyTestDataStatsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetStudyTestDataStatsAsync(CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        var stats = new StudyTestDataStatsDto
+        {
+            StudyCount = await _db.Studies.CountAsync(cancellationToken),
+            ArmCount = await _db.StudyArms.CountAsync(cancellationToken),
+            VisitCount = await _db.StudyVisits.CountAsync(cancellationToken),
+            MilestoneCount = await _db.StudyMilestones.CountAsync(cancellationToken),
+            DocumentCount = await _db.StudyDocuments.CountAsync(cancellationToken),
+            StudiesByStatus = await _db.Studies
+                .AsNoTracking()
+                .GroupBy(s => s.Status)
+                .Select(g => new StudyStatusCountDto { StatusName = g.Key, Count = g.Count() })
+                .OrderBy(x => x.StatusName)
+                .ToListAsync(cancellationToken),
+            StudiesBySponsor = await _db.Studies
+                .AsNoTracking()
+                .Include(s => s.SponsorTeam)
+                .GroupBy(s => s.SponsorTeam.Name)
+                .Select(g => new StudySponsorCountDto { SponsorName = g.Key, Count = g.Count() })
+                .OrderBy(x => x.SponsorName)
+                .ToListAsync(cancellationToken)
+        };
+
+        return Ok(stats);
+    }
+
+    private IQueryable<Study> StudyIncludeAllQuery() => _db.Studies
+        .Include(s => s.SponsorTeam)
+        .Include(s => s.ManagingSite)
+        .Include(s => s.LeadSourceStaff)
+        .Include(s => s.TargetDates)
+        .Include(s => s.Leadership).ThenInclude(l => l.Staff)
+        .Include(s => s.CustomFieldValues)
+        .Include(s => s.Contacts);
+
+    private async Task<List<int>> EnsureSponsorTeamsAsync(CancellationToken cancellationToken)
+    {
+        var existing = await _db.SponsorTeams.Select(t => t.Id).ToListAsync(cancellationToken);
+        if (existing.Count > 0) return existing;
+
+        var sponsor = new Sponsor { Uid = Guid.NewGuid(), Name = "Synthetic Sponsor" };
+        _db.Sponsors.Add(sponsor);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var division = new SponsorDivision { SponsorId = sponsor.Id, Name = "Synthetic Division" };
+        _db.SponsorDivisions.Add(division);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var team = new SponsorTeam { SponsorDivisionId = division.Id, Name = "Synthetic Team" };
+        _db.SponsorTeams.Add(team);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return new List<int> { team.Id };
+    }
+
+    private async Task<List<string>> EnsureStudyCategoriesAsync(CancellationToken cancellationToken)
+    {
+        var existing = await _db.StudyCategories.Select(c => c.Name).ToListAsync(cancellationToken);
+        if (existing.Count > 0) return existing;
+
+        var defaults = new[] { "Oncology", "Cardiology", "Neurology", "Immunology" };
+        _db.StudyCategories.AddRange(defaults.Select(name => new StudyCategory { Name = name }));
+        await _db.SaveChangesAsync(cancellationToken);
+        return defaults.ToList();
+    }
+
+    private async Task<List<string>> EnsureStudyStatusesAsync(CancellationToken cancellationToken)
+    {
+        var existing = await _db.StudyStatusTypes.Select(s => s.Name).ToListAsync(cancellationToken);
+        if (existing.Count > 0) return existing;
+
+        var defaults = new[] { "Enrolling", "Active", "Closed to Enrollment", "Completed" };
+        _db.StudyStatusTypes.AddRange(defaults.Select(name => new StudyStatusType { Name = name, IsActive = true, IsEnrollmentPermitted = name == "Enrolling" }));
+        await _db.SaveChangesAsync(cancellationToken);
+        return defaults.ToList();
+    }
+
+    private async Task<List<string>> EnsureStudyGroupsAsync(CancellationToken cancellationToken)
+    {
+        var existing = await _db.StudyGroups.Select(g => g.Name).ToListAsync(cancellationToken);
+        if (existing.Count > 0) return existing;
+
+        var defaults = new[] { "Group A", "Group B" };
+        _db.StudyGroups.AddRange(defaults.Select(name => new StudyGroup { Name = name }));
+        await _db.SaveChangesAsync(cancellationToken);
+        return defaults.ToList();
+    }
+
+    public sealed class GenerateStudiesRequest
+    {
+        public int? TotalCount { get; set; }
+        public int? Seed { get; set; }
+    }
+
+    public sealed class GenerateStudiesResponse
+    {
+        public int TotalRequested { get; set; }
+        public int TotalInserted { get; set; }
+        public int ArmsInserted { get; set; }
+        public int VisitsInserted { get; set; }
+        public int MilestonesInserted { get; set; }
+        public int DocumentsInserted { get; set; }
+        public int NotesInserted { get; set; }
+        public int TotalAfter { get; set; }
+    }
+
+    public sealed class StudyStatusCountDto
+    {
+        public string StatusName { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    public sealed class StudySponsorCountDto
+    {
+        public string SponsorName { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    public sealed class StudyTestDataStatsDto
+    {
+        public int StudyCount { get; set; }
+        public int ArmCount { get; set; }
+        public int VisitCount { get; set; }
+        public int MilestoneCount { get; set; }
+        public int DocumentCount { get; set; }
+        public IReadOnlyList<StudyStatusCountDto> StudiesByStatus { get; set; } = Array.Empty<StudyStatusCountDto>();
+        public IReadOnlyList<StudySponsorCountDto> StudiesBySponsor { get; set; } = Array.Empty<StudySponsorCountDto>();
     }
 }
 
