@@ -74,6 +74,11 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
 
   const hasSession = tick >= 0 && getAdminSessionToken() !== null;
   const expiresAtUtc = tick >= 0 ? getAdminSessionExpiresAtUtc() : null;
+  // Consuming components each guard their own mutating handlers with
+  // `if (isDemoMode) return;` rather than this being enforced centrally (e.g. in api.ts's
+  // request interceptor). Deliberate: the interceptor has no reliable way to distinguish a
+  // read from a write per-endpoint, and centralizing would be a cross-cutting change affecting
+  // every page, not just Test Data. Per-handler guards are the accepted tradeoff for now.
   const isDemoMode = !hasSession && isAdminKeyRequired;
 
   // Schedule a timer to fire refresh() exactly when the token expires
