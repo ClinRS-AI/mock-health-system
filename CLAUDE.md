@@ -70,7 +70,7 @@ Single-page app wrapped in `AdminSessionProvider` (`AdminSessionContext.tsx`). `
 - `AdminAccessPage` — enter static admin key once; mints session via `exchangeAdminSession`; stores JWT in `sessionStorage` (`adminSessionStore.ts`)
 - `AuthSettingsPage` — configure auth mode and tokens
 - `MonitoringPage` — view request logs and stats
-- `TestDataPage` — generate/reset/look up synthetic patients
+- `TestDataPage` — orchestrator for four sub-tabs covering synthetic patient/study data: `TestDataCountsSection` (stats + Recharts breakdowns), `TestDataGenerationSection` (bulk/manual creation), `TestDataManipulationSection` (lookup/view/edit), `TestDataInfoDestructionSection` (connection info + confirmation-gated reset "danger zone")
 
 All API calls go through `src/api.ts` (Axios client, typed). A request interceptor on the main client adds `X-Admin-Session` when a non-expired token exists; `mintApi` is used for the mint endpoint so the session header is not sent there. Backend URL is set via `VITE_API_BASE_URL` in `frontend/.env`.
 
