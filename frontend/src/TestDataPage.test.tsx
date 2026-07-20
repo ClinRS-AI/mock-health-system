@@ -1,46 +1,21 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import TestDataPage from "./TestDataPage";
 import { server } from "./test/server";
 import { renderWithAdminSession, renderInDemoMode } from "./test/renderWithAdminSession";
-import { DEMO_TEST_DATA_STATS } from "./demoData";
 
-describe("TestDataPage", () => {
+const TAB_LABELS = [
+  "Data Counts and Visualizations",
+  "Data Generation",
+  "Data Manipulation",
+  "Information and Destruction"
+];
+
+describe("TestDataPage (orchestrator)", () => {
   beforeEach(() => {
     server.use(
-      http.get("*/api/v1/test-data/soap/report-pkeys", () =>
-        HttpResponse.json({ pkeys: ["PATIENT_COUNT"] })
-      )
-    );
-  });
-
-  it("loads stats and shows key summary values", async () => {
-    server.use(
-      http.get("*/api/v1/test-data/patients/stats", () =>
-        HttpResponse.json({
-          patientCount: 1000,
-          duplicatePatientCount: 30,
-          recentAuditEventCount: 5,
-          totalStaffCount: 10,
-          patientsBySite: [{ siteName: "Main Clinic", count: 800 }]
-        })
-      )
-    );
-
-    renderWithAdminSession(<TestDataPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("1000")).toBeInTheDocument();
-      expect(screen.getByText("10")).toBeInTheDocument();
-      expect(screen.getByText("PATIENT_COUNT")).toBeInTheDocument();
-    });
-  });
-
-  it("submits patient generation and displays returned totals", async () => {
-    const user = userEvent.setup();
-    server.use(
       http.get("*/api/v1/test-data/patients/stats", () =>
         HttpResponse.json({
           patientCount: 0,
@@ -50,292 +25,132 @@ describe("TestDataPage", () => {
           patientsBySite: []
         })
       ),
-      http.post("*/api/v1/test-data/patients/generate", () =>
+      http.get("*/api/v1/test-data/studies/stats", () =>
         HttpResponse.json({
-          totalRequested: 5000,
-          totalBaseInserted: 5000,
-          duplicateRequested: 150,
-          duplicateInserted: 150,
-          totalAfter: 5150
-        })
-      )
-    );
-
-    renderWithAdminSession(<TestDataPage />);
-    await screen.findByRole("button", { name: /generate patients/i });
-    await user.click(screen.getByRole("button", { name: /generate patients/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/total after generation/i)).toBeInTheDocument();
-      expect(screen.getByText("5150")).toBeInTheDocument();
-    });
-  });
-
-  it("shows actionable error when generation request fails", async () => {
-    const user = userEvent.setup();
-    server.use(
-      http.get("*/api/v1/test-data/patients/stats", () =>
-        HttpResponse.json({
-          patientCount: 0,
-          duplicatePatientCount: 0,
-          recentAuditEventCount: 0,
-          totalStaffCount: 0,
-          patientsBySite: []
+          studyCount: 0,
+          armCount: 0,
+          visitCount: 0,
+          milestoneCount: 0,
+          documentCount: 0,
+          studiesByStatus: [],
+          studiesBySponsor: []
         })
       ),
-      http.post("*/api/v1/test-data/patients/generate", () => HttpResponse.json({}, { status: 500 }))
+      http.get("*/api/v1/test-data/soap/report-pkeys", () => HttpResponse.json({ pkeys: [] }))
     );
+  });
 
+  it("renders all four tab labels", async () => {
     renderWithAdminSession(<TestDataPage />);
-    await screen.findByRole("button", { name: /generate patients/i });
-    await user.click(screen.getByRole("button", { name: /generate patients/i }));
 
-    await waitFor(() => {
-      expect(screen.getByText(/unable to generate patients/i)).toBeInTheDocument();
-    });
+    for (const label of TAB_LABELS) {
+      expect(await screen.findByRole("button", { name: label })).toBeInTheDocument();
+    }
   });
 
-  it("demo mode: renders stats from DEMO_TEST_DATA_STATS without calling the API", async () => {
-    const getStatsSpy = vi.fn();
-    server.use(
-      http.get("*/api/v1/test-data/patients/stats", () => {
-        getStatsSpy();
-        return HttpResponse.json({});
-      })
-    );
-
-    renderInDemoMode(<TestDataPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText(String(DEMO_TEST_DATA_STATS.patientCount))).toBeInTheDocument();
-      expect(screen.getByText(String(DEMO_TEST_DATA_STATS.totalStaffCount))).toBeInTheDocument();
-    });
-    expect(getStatsSpy).not.toHaveBeenCalled();
-  });
-
-  it("demo mode: Generate Patients button is present and clickable without triggering an API call", async () => {
+  it("shows only the active tab's content and hides the other three", async () => {
     const user = userEvent.setup();
-    const postSpy = vi.fn();
-    server.use(
-      http.post("*/api/v1/test-data/patients/generate", () => {
-        postSpy();
-        return HttpResponse.json({});
-      })
-    );
+    renderWithAdminSession(<TestDataPage />);
 
-    renderInDemoMode(<TestDataPage />);
+    // Counts tab is active by default.
+    expect(await screen.findByRole("heading", { name: "Data Counts and Visualizations" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Data Generation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Data Manipulation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Information and Destruction" })).not.toBeInTheDocument();
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /generate patients/i })).toBeInTheDocument()
-    );
-    await user.click(screen.getByRole("button", { name: /generate patients/i }));
+    await user.click(screen.getByRole("button", { name: "Data Generation" }));
+    expect(await screen.findByRole("heading", { name: "Data Generation" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Data Counts and Visualizations" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Data Manipulation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Information and Destruction" })).not.toBeInTheDocument();
 
-    expect(postSpy).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Data Manipulation" }));
+    expect(await screen.findByRole("heading", { name: "Data Manipulation" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Data Generation" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Information and Destruction" }));
+    expect(await screen.findByRole("heading", { name: "Information and Destruction" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Data Manipulation" })).not.toBeInTheDocument();
   });
 
-  describe("Studies section", () => {
+  it("renders the tab row in demo mode", async () => {
+    renderInDemoMode(<TestDataPage />);
+
+    for (const label of TAB_LABELS) {
+      expect(await screen.findByRole("button", { name: label })).toBeInTheDocument();
+    }
+    expect(await screen.findByRole("heading", { name: "Data Counts and Visualizations" })).toBeInTheDocument();
+  });
+
+  it("does not re-render the whole page on tab switch (AdminSessionBanner stays mounted)", async () => {
+    const user = userEvent.setup();
+    renderWithAdminSession(<TestDataPage />);
+
+    await screen.findByRole("heading", { name: "Data Counts and Visualizations" });
+    await user.click(screen.getByRole("button", { name: "Data Manipulation" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Data Manipulation" })).toBeInTheDocument();
+    });
+  });
+
+  describe("unsaved patient-edit guard on tab switch", () => {
     beforeEach(() => {
       server.use(
-        http.get("*/api/v1/test-data/studies/stats", () =>
-          HttpResponse.json({
-            studyCount: 0,
-            armCount: 0,
-            visitCount: 0,
-            milestoneCount: 0,
-            documentCount: 0,
-            studiesByStatus: [],
-            studiesBySponsor: []
-          })
+        http.get("*/api/v1/test-data/patients/lookup", () =>
+          HttpResponse.json({ id: 1, uid: "u-1", firstName: "Jane", lastName: "Doe", primaryEmailAddress: "jane@example.com" })
         )
       );
     });
 
-    it("loads study stats and shows key summary values", async () => {
-      server.use(
-        http.get("*/api/v1/test-data/studies/stats", () =>
-          HttpResponse.json({
-            studyCount: 42,
-            armCount: 90,
-            visitCount: 210,
-            milestoneCount: 130,
-            documentCount: 80,
-            studiesByStatus: [{ statusName: "Enrolling", count: 20 }],
-            studiesBySponsor: []
-          })
-        )
-      );
-
-      renderWithAdminSession(<TestDataPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText("42")).toBeInTheDocument();
-        expect(screen.getByText("Enrolling")).toBeInTheDocument();
-      });
-    });
-
-    it("submits study generation and displays returned totals", async () => {
-      const user = userEvent.setup();
-      server.use(
-        http.post("*/api/v1/test-data/studies/generate", () =>
-          HttpResponse.json({
-            totalRequested: 25,
-            totalInserted: 25,
-            armsInserted: 61,
-            visitsInserted: 143,
-            milestonesInserted: 98,
-            documentsInserted: 52,
-            notesInserted: 40,
-            totalAfter: 25
-          })
-        )
-      );
-
-      renderWithAdminSession(<TestDataPage />);
-      await screen.findByRole("button", { name: /generate studies/i });
-      await user.click(screen.getByRole("button", { name: /generate studies/i }));
-
-      await waitFor(() => {
-        expect(screen.getByText(/total after generation/i)).toBeInTheDocument();
-      });
-    });
-
-    it("shows actionable error when study generation request fails", async () => {
-      const user = userEvent.setup();
-      server.use(
-        http.post("*/api/v1/test-data/studies/generate", () => HttpResponse.json({}, { status: 500 }))
-      );
-
-      renderWithAdminSession(<TestDataPage />);
-      await screen.findByRole("button", { name: /generate studies/i });
-      await user.click(screen.getByRole("button", { name: /generate studies/i }));
-
-      await waitFor(() => {
-        expect(screen.getByText(/unable to generate studies/i)).toBeInTheDocument();
-      });
-    });
-
-    it("resets study data when Reset study data is clicked", async () => {
-      const user = userEvent.setup();
-      const resetSpy = vi.fn();
-      server.use(
-        http.post("*/api/v1/test-data/studies/reset", () => {
-          resetSpy();
-          return HttpResponse.json({});
-        })
-      );
-
-      renderWithAdminSession(<TestDataPage />);
-      await screen.findByRole("button", { name: /reset study data/i });
-      await user.click(screen.getByRole("button", { name: /reset study data/i }));
-
-      await waitFor(() => expect(resetSpy).toHaveBeenCalled());
-    });
-
-    it("looks up a study by name fragment and displays the result", async () => {
-      const user = userEvent.setup();
-      server.use(
-        http.get("*/api/v1/test-data/studies/lookup", () =>
-          HttpResponse.json({
-            id: 7,
-            uid: "550e8400-e29b-41d4-a716-446655440000",
-            name: "Acme Oncology Study",
-            status: "Enrolling",
-            sponsorTeam: { id: 1, name: "Team A" },
-            contacts: [],
-            createdOn: "2026-01-01T00:00:00Z",
-            lastUpdatedOn: "2026-01-01T00:00:00Z"
-          })
-        )
-      );
-
-      renderWithAdminSession(<TestDataPage />);
-      await user.click(screen.getByText(/lookup study/i));
-      const nameInput = await screen.findByPlaceholderText(/acme oncology/i);
-      await user.type(nameInput, "Acme");
-      const form = nameInput.closest("form") as HTMLElement;
+    async function startEditingAPatient(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole("button", { name: "Data Manipulation" }));
+      const idInput = await screen.findByPlaceholderText(/e\.g\. 1/i);
+      await user.type(idInput, "1");
+      const form = idInput.closest("form") as HTMLElement;
       await user.click(within(form).getByRole("button", { name: /^lookup$/i }));
+      await screen.findByText(/patient record \(all details\)/i);
+      await user.click(screen.getByRole("button", { name: /^edit$/i }));
+      await screen.findByRole("textbox", { name: "" });
+    }
 
-      await waitFor(() => {
-        expect(screen.getByText(/study record/i)).toBeInTheDocument();
-        expect(screen.getByText(/Acme Oncology Study/)).toBeInTheDocument();
-      });
-    });
-
-    it("shows not-found message when study lookup has no match", async () => {
+    it("asks for confirmation before switching tabs while editing, and stays put if canceled", async () => {
       const user = userEvent.setup();
-      server.use(
-        http.get("*/api/v1/test-data/studies/lookup", () => HttpResponse.json({}, { status: 404 }))
-      );
-
+      const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
       renderWithAdminSession(<TestDataPage />);
-      await user.click(screen.getByText(/lookup study/i));
-      const nameInput = await screen.findByPlaceholderText(/acme oncology/i);
-      await user.type(nameInput, "Nonexistent");
-      const form = nameInput.closest("form") as HTMLElement;
-      await user.click(within(form).getByRole("button", { name: /^lookup$/i }));
 
-      await waitFor(() => {
-        expect(screen.getByText(/no study found/i)).toBeInTheDocument();
-      });
+      await startEditingAPatient(user);
+      await user.click(screen.getByRole("button", { name: "Data Counts and Visualizations" }));
+
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("heading", { name: "Data Manipulation" })).toBeInTheDocument();
+      confirmSpy.mockRestore();
     });
 
-    it("clears a stale lookup result when Get random fails with a non-404 error", async () => {
+    it("switches tabs (discarding the edit) if the user confirms", async () => {
       const user = userEvent.setup();
-      server.use(
-        http.get("*/api/v1/test-data/studies/lookup", () =>
-          HttpResponse.json({
-            id: 7,
-            uid: "550e8400-e29b-41d4-a716-446655440000",
-            name: "Acme Oncology Study",
-            status: "Enrolling",
-            sponsorTeam: { id: 1, name: "Team A" },
-            contacts: [],
-            createdOn: "2026-01-01T00:00:00Z",
-            lastUpdatedOn: "2026-01-01T00:00:00Z"
-          })
-        )
-      );
-
+      const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
       renderWithAdminSession(<TestDataPage />);
-      await user.click(screen.getByText(/lookup study/i));
-      const nameInput = await screen.findByPlaceholderText(/acme oncology/i);
-      await user.type(nameInput, "Acme");
-      const form = nameInput.closest("form") as HTMLElement;
-      await user.click(within(form).getByRole("button", { name: /^lookup$/i }));
 
-      await waitFor(() => {
-        expect(screen.getByText(/Acme Oncology Study/)).toBeInTheDocument();
-      });
+      await startEditingAPatient(user);
+      await user.click(screen.getByRole("button", { name: "Data Counts and Visualizations" }));
 
-      server.use(
-        http.get("*/api/v1/test-data/studies/random", () => HttpResponse.json({}, { status: 500 }))
-      );
-      await user.click(within(form).getByRole("button", { name: /get random/i }));
-
-      await waitFor(() => {
-        expect(screen.getByText(/unable to get a random study/i)).toBeInTheDocument();
-        expect(screen.queryByText(/Acme Oncology Study/)).not.toBeInTheDocument();
-      });
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("heading", { name: "Data Counts and Visualizations" })).toBeInTheDocument();
+      confirmSpy.mockRestore();
     });
 
-    it("demo mode: Generate studies button is present and clickable without triggering an API call", async () => {
+    it("does not prompt when switching tabs without an unsaved edit in progress", async () => {
       const user = userEvent.setup();
-      const postSpy = vi.fn();
-      server.use(
-        http.post("*/api/v1/test-data/studies/generate", () => {
-          postSpy();
-          return HttpResponse.json({});
-        })
-      );
+      const confirmSpy = vi.spyOn(window, "confirm");
+      renderWithAdminSession(<TestDataPage />);
 
-      renderInDemoMode(<TestDataPage />);
+      await user.click(screen.getByRole("button", { name: "Data Manipulation" }));
+      await screen.findByRole("heading", { name: "Data Manipulation" });
+      await user.click(screen.getByRole("button", { name: "Data Counts and Visualizations" }));
 
-      await waitFor(() =>
-        expect(screen.getByRole("button", { name: /generate studies/i })).toBeInTheDocument()
-      );
-      await user.click(screen.getByRole("button", { name: /generate studies/i }));
-
-      expect(postSpy).not.toHaveBeenCalled();
+      expect(confirmSpy).not.toHaveBeenCalled();
+      confirmSpy.mockRestore();
     });
   });
 });

@@ -3,7 +3,8 @@ import type {
   MonitoredRequestDetail,
   MonitoredRequestSummary,
   MonitoringStats,
-  PatientTestDataStats
+  PatientTestDataStats,
+  StudyTestDataStats
 } from "./api";
 
 export const DEMO_AUTH_SETTINGS: AuthSettings = {
@@ -231,14 +232,33 @@ export const DEMO_MONITORING_DETAILS: Record<number, MonitoredRequestDetail> =
   );
 
 export const DEMO_TEST_DATA_STATS: PatientTestDataStats = {
-  patientCount: 47,
-  duplicatePatientCount: 12,
-  recentAuditEventCount: 234,
-  totalStaffCount: 8,
+  patientCount: 147548,
+  duplicatePatientCount: 127,
+  recentAuditEventCount: 2343,
+  totalStaffCount: 87,
   patientsBySite: [
     { siteName: "General Hospital", count: 18 },
     { siteName: "North Clinic", count: 14 },
     { siteName: "East Medical Center", count: 10 },
     { siteName: "West Branch", count: 5 }
+  ]
+};
+
+export const DEMO_STUDY_TEST_DATA_STATS: StudyTestDataStats = {
+  studyCount: 146,
+  armCount: 318,
+  visitCount: 92,
+  milestoneCount: 534,
+  documentCount: 411,
+  studiesByStatus: [
+    { statusName: "Enrolling", count: 17 },
+    { statusName: "Active", count: 52 },
+    { statusName: "Closed", count: 62 },
+    { statusName: "Suspended", count: 18 }
+  ],
+  studiesBySponsor: [
+    { sponsorName: "Acme Pharma", count: 64 },
+    { sponsorName: "Northwind Biotech", count: 30 },
+    { sponsorName: "Contoso Research", count: 52 }
   ]
 };
