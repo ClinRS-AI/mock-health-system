@@ -5,6 +5,7 @@ import {
   generateRecentAuditEvents,
   addTestPatient,
   generateTestStudies,
+  generateTestSubjects,
   type GeneratePatientsOptions,
   type GeneratePatientsResult,
   type GenerateStaffOptions,
@@ -13,7 +14,9 @@ import {
   type GenerateRecentAuditEventsResult,
   type AddTestPatientResponse,
   type GenerateStudiesOptions,
-  type GenerateStudiesResult
+  type GenerateStudiesResult,
+  type GenerateSubjectsOptions,
+  type GenerateSubjectsResult
 } from "./api";
 import { useAdminSession } from "./AdminSessionContext";
 
@@ -34,6 +37,12 @@ const TestDataGenerationSection: React.FC = () => {
   });
   const [studiesGenerateResult, setStudiesGenerateResult] = useState<GenerateStudiesResult | null>(null);
   const [loadingGenerateStudies, setLoadingGenerateStudies] = useState(false);
+
+  const [subjectsGenerateOptions, setSubjectsGenerateOptions] = useState<GenerateSubjectsOptions>({
+    totalCount: 25
+  });
+  const [subjectsGenerateResult, setSubjectsGenerateResult] = useState<GenerateSubjectsResult | null>(null);
+  const [loadingGenerateSubjects, setLoadingGenerateSubjects] = useState(false);
 
   const [staffGenerateOptions, setStaffGenerateOptions] = useState<GenerateStaffOptions>({
     count: 10
@@ -84,6 +93,23 @@ const TestDataGenerationSection: React.FC = () => {
       setStudiesGenerateResult(null);
     } finally {
       setLoadingGenerateStudies(false);
+    }
+  }
+
+  async function handleGenerateSubjects() {
+    if (isDemoMode) return;
+    try {
+      setLoadingGenerateSubjects(true);
+      setError(null);
+
+      const result = await generateTestSubjects(subjectsGenerateOptions);
+      setSubjectsGenerateResult(result);
+    } catch (err) {
+      console.error(err);
+      setError("Unable to generate subjects. Ensure patients and studies exist first.");
+      setSubjectsGenerateResult(null);
+    } finally {
+      setLoadingGenerateSubjects(false);
     }
   }
 
@@ -326,6 +352,83 @@ const TestDataGenerationSection: React.FC = () => {
                 Total after generation:{" "}
                 <span className="font-semibold tabular-nums">
                   {studiesGenerateResult.totalAfter}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-slate-800">Generate subjects</h3>
+          <p className="text-xs text-slate-500">
+            Link existing patients and studies into synthetic enrollment records. Requires
+            patients and studies to already exist.
+          </p>
+
+          <div className="space-y-2 text-xs text-slate-700">
+            <label className="block">
+              <span className="block mb-1">Total subjects to generate</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                value={subjectsGenerateOptions.totalCount ?? ""}
+                onChange={(e) =>
+                  setSubjectsGenerateOptions((prev) => ({
+                    ...prev,
+                    totalCount: e.target.value === "" ? undefined : Number(e.target.value)
+                  }))
+                }
+              />
+            </label>
+
+            <label className="block">
+              <span className="block mb-1">Seed (optional, for reproducible data)</span>
+              <input
+                type="number"
+                className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                value={subjectsGenerateOptions.seed ?? ""}
+                onChange={(e) =>
+                  setSubjectsGenerateOptions((prev) => ({
+                    ...prev,
+                    seed: e.target.value === "" ? undefined : Number(e.target.value)
+                  }))
+                }
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void handleGenerateSubjects()}
+            disabled={loadingGenerateSubjects}
+            className="inline-flex items-center justify-center rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-70"
+          >
+            {loadingGenerateSubjects ? "Generating…" : "Generate subjects"}
+          </button>
+
+          {subjectsGenerateResult && (
+            <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 space-y-1">
+              <div>
+                Requested:{" "}
+                <span className="font-semibold tabular-nums">
+                  {subjectsGenerateResult.totalRequested}
+                </span>{" "}
+                subjects
+              </div>
+              <div>
+                Inserted:{" "}
+                <span className="font-semibold tabular-nums">
+                  {subjectsGenerateResult.totalInserted}
+                </span>{" "}
+                (status history rows {subjectsGenerateResult.statusHistoryInserted})
+              </div>
+              <div>
+                Total after generation:{" "}
+                <span className="font-semibold tabular-nums">
+                  {subjectsGenerateResult.totalAfter}
                 </span>
               </div>
             </div>

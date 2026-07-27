@@ -5,10 +5,12 @@ import { http, HttpResponse } from "msw";
 import TestDataCountsSection from "./TestDataCountsSection";
 import { server } from "./test/server";
 import { renderWithAdminSession, renderInDemoMode } from "./test/renderWithAdminSession";
-import { DEMO_TEST_DATA_STATS, DEMO_STUDY_TEST_DATA_STATS } from "./demoData";
+import { DEMO_TEST_DATA_STATS, DEMO_STUDY_TEST_DATA_STATS, DEMO_SUBJECT_TEST_DATA_STATS } from "./demoData";
+
+const EMPTY_SUBJECT_STATS = { subjectCount: 0, patientsByStudy: [], topStudiesBySubjectStatus: [] };
 
 describe("TestDataCountsSection", () => {
-  it("renders patient and study stats with a visual chart element alongside numeric values", async () => {
+  it("renders patient, study, and subject stats with a visual chart element alongside numeric values", async () => {
     server.use(
       http.get("*/api/v1/test-data/patients/stats", () =>
         HttpResponse.json({
@@ -29,6 +31,23 @@ describe("TestDataCountsSection", () => {
           studiesByStatus: [{ statusName: "Enrolling", count: 20 }],
           studiesBySponsor: []
         })
+      ),
+      http.get("*/api/v1/test-data/subjects/stats", () =>
+        HttpResponse.json({
+          subjectCount: 300,
+          patientsByStudy: [{ studyId: 1, studyName: "Acme Study", patientCount: 150 }],
+          topStudiesBySubjectStatus: [
+            {
+              studyId: 1,
+              studyName: "Acme Study",
+              totalCount: 300,
+              byStatus: [
+                { statusName: "Prescreened", count: 150 },
+                { statusName: "Screened", count: 150 }
+              ]
+            }
+          ]
+        })
       )
     );
 
@@ -38,6 +57,7 @@ describe("TestDataCountsSection", () => {
       expect(screen.getByText("1000")).toBeInTheDocument();
       expect(screen.getByText("10")).toBeInTheDocument();
       expect(screen.getByText("42")).toBeInTheDocument();
+      expect(screen.getByText("300")).toBeInTheDocument();
     });
     // Recharts doesn't paint any content in jsdom (no layout engine), so the chart itself isn't
     // assertable — instead confirm the chart branch (not the empty-state branch) was taken, per
@@ -46,6 +66,7 @@ describe("TestDataCountsSection", () => {
     await waitFor(() => {
       expect(screen.queryByText(/no patients yet/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/no studies yet/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/no subjects yet/i)).not.toBeInTheDocument();
     });
   });
 
@@ -70,7 +91,8 @@ describe("TestDataCountsSection", () => {
           studiesByStatus: [],
           studiesBySponsor: []
         })
-      )
+      ),
+      http.get("*/api/v1/test-data/subjects/stats", () => HttpResponse.json(EMPTY_SUBJECT_STATS))
     );
 
     renderWithAdminSession(<TestDataCountsSection />);
@@ -78,6 +100,7 @@ describe("TestDataCountsSection", () => {
     await waitFor(() => {
       expect(screen.getByText(/no patients yet/i)).toBeInTheDocument();
       expect(screen.getByText(/no studies yet/i)).toBeInTheDocument();
+      expect(screen.getByText(/no subjects yet/i)).toBeInTheDocument();
     });
     expect(screen.queryByText(/unable to/i)).not.toBeInTheDocument();
   });
@@ -105,7 +128,8 @@ describe("TestDataCountsSection", () => {
           studiesByStatus: [],
           studiesBySponsor: []
         })
-      )
+      ),
+      http.get("*/api/v1/test-data/subjects/stats", () => HttpResponse.json(EMPTY_SUBJECT_STATS))
     );
 
     renderWithAdminSession(<TestDataCountsSection />);
@@ -132,7 +156,8 @@ describe("TestDataCountsSection", () => {
           studiesByStatus: [],
           studiesBySponsor: []
         })
-      )
+      ),
+      http.get("*/api/v1/test-data/subjects/stats", () => HttpResponse.json(EMPTY_SUBJECT_STATS))
     );
 
     renderWithAdminSession(<TestDataCountsSection />);
@@ -166,7 +191,8 @@ describe("TestDataCountsSection", () => {
           studiesByStatus: [],
           studiesBySponsor: []
         })
-      )
+      ),
+      http.get("*/api/v1/test-data/subjects/stats", () => HttpResponse.json(EMPTY_SUBJECT_STATS))
     );
 
     renderWithAdminSession(<TestDataCountsSection />);
@@ -182,9 +208,42 @@ describe("TestDataCountsSection", () => {
     expect(screen.queryByText("5")).not.toBeInTheDocument();
   });
 
-  it("demo mode: renders DEMO_TEST_DATA_STATS and DEMO_STUDY_TEST_DATA_STATS without making a live API call", async () => {
+  it("shows an inline error when the subject stats load fails", async () => {
+    server.use(
+      http.get("*/api/v1/test-data/patients/stats", () =>
+        HttpResponse.json({
+          patientCount: 0,
+          duplicatePatientCount: 0,
+          recentAuditEventCount: 0,
+          totalStaffCount: 0,
+          patientsBySite: []
+        })
+      ),
+      http.get("*/api/v1/test-data/studies/stats", () =>
+        HttpResponse.json({
+          studyCount: 0,
+          armCount: 0,
+          visitCount: 0,
+          milestoneCount: 0,
+          documentCount: 0,
+          studiesByStatus: [],
+          studiesBySponsor: []
+        })
+      ),
+      http.get("*/api/v1/test-data/subjects/stats", () => HttpResponse.json({}, { status: 500 }))
+    );
+
+    renderWithAdminSession(<TestDataCountsSection />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/unable to load subject stats/i)).toBeInTheDocument();
+    });
+  });
+
+  it("demo mode: renders DEMO_TEST_DATA_STATS, DEMO_STUDY_TEST_DATA_STATS, and DEMO_SUBJECT_TEST_DATA_STATS without making a live API call", async () => {
     const statsSpy = vi.fn();
     const studiesStatsSpy = vi.fn();
+    const subjectsStatsSpy = vi.fn();
     server.use(
       http.get("*/api/v1/test-data/patients/stats", () => {
         statsSpy();
@@ -192,6 +251,10 @@ describe("TestDataCountsSection", () => {
       }),
       http.get("*/api/v1/test-data/studies/stats", () => {
         studiesStatsSpy();
+        return HttpResponse.json({});
+      }),
+      http.get("*/api/v1/test-data/subjects/stats", () => {
+        subjectsStatsSpy();
         return HttpResponse.json({});
       })
     );
@@ -203,8 +266,10 @@ describe("TestDataCountsSection", () => {
       expect(screen.getByText(String(DEMO_TEST_DATA_STATS.totalStaffCount))).toBeInTheDocument();
       expect(screen.getByText(String(DEMO_STUDY_TEST_DATA_STATS.studyCount))).toBeInTheDocument();
       expect(screen.getByText(String(DEMO_STUDY_TEST_DATA_STATS.armCount))).toBeInTheDocument();
+      expect(screen.getByText(String(DEMO_SUBJECT_TEST_DATA_STATS.subjectCount))).toBeInTheDocument();
     });
     expect(statsSpy).not.toHaveBeenCalled();
     expect(studiesStatsSpy).not.toHaveBeenCalled();
+    expect(subjectsStatsSpy).not.toHaveBeenCalled();
   });
 });

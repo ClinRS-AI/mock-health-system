@@ -121,6 +121,44 @@ describe("TestDataManipulationSection", () => {
     });
   });
 
+  it("shows full subject details on lookup, or a not-found message when there is no match", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("*/api/v1/test-data/subjects/lookup", () =>
+        HttpResponse.json({
+          id: 101,
+          uid: "550e8400-e29b-41d4-a716-446655440000",
+          study: { id: 7, uid: "660e8400-e29b-41d4-a716-446655440000", name: "Acme Study" },
+          patient: { id: 42, uid: "770e8400-e29b-41d4-a716-446655440000", firstName: "Jane", lastName: "Doe", name: "Doe, Jane" },
+          status: "Screened",
+          enrollmentDate: "2026-01-01T00:00:00Z",
+          createdOn: "2026-01-01T00:00:00Z",
+          lastUpdatedOn: "2026-01-01T00:00:00Z"
+        })
+      )
+    );
+
+    renderWithAdminSession(<TestDataManipulationSection />);
+    const idInput = screen.getByPlaceholderText(/e\.g\. 500/i);
+    await user.type(idInput, "101");
+    const form = idInput.closest("form") as HTMLElement;
+    await user.click(within(form).getByRole("button", { name: /^lookup$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/subject record/i)).toBeInTheDocument();
+      expect(screen.getByText(/"status": "Screened"/)).toBeInTheDocument();
+    });
+
+    server.use(http.get("*/api/v1/test-data/subjects/lookup", () => HttpResponse.json({}, { status: 404 })));
+    await user.clear(idInput);
+    await user.type(idInput, "999");
+    await user.click(within(form).getByRole("button", { name: /^lookup$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/no subject found/i)).toBeInTheDocument();
+    });
+  });
+
   it("returns a randomly selected patient or study via Get random (AC4)", async () => {
     const user = userEvent.setup();
     server.use(

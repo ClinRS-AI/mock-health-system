@@ -3,7 +3,8 @@ import {
   getSoapReportPkeys,
   getConfiguredApiBaseUrl,
   resetTestPatients,
-  resetTestStudies
+  resetTestStudies,
+  resetTestSubjects
 } from "./api";
 import { useAdminSession } from "./AdminSessionContext";
 
@@ -74,6 +75,8 @@ const TestDataInfoDestructionSection: React.FC = () => {
   const [resetConfirming, setResetConfirming] = useState(false);
   const [loadingResetStudies, setLoadingResetStudies] = useState(false);
   const [resetStudiesConfirming, setResetStudiesConfirming] = useState(false);
+  const [loadingResetSubjects, setLoadingResetSubjects] = useState(false);
+  const [resetSubjectsConfirming, setResetSubjectsConfirming] = useState(false);
 
   const apiBaseUrl = getConfiguredApiBaseUrl();
   const versionedJsonBase = apiBaseUrl ? `${apiBaseUrl}/api/v1` : "";
@@ -137,6 +140,21 @@ const TestDataInfoDestructionSection: React.FC = () => {
     } finally {
       setLoadingResetStudies(false);
       setResetStudiesConfirming(false);
+    }
+  }
+
+  async function handleResetSubjects() {
+    if (isDemoMode) return;
+    try {
+      setLoadingResetSubjects(true);
+      setError(null);
+      await resetTestSubjects();
+    } catch (err) {
+      console.error(err);
+      setError("Unable to reset subjects. Check the admin key and backend.");
+    } finally {
+      setLoadingResetSubjects(false);
+      setResetSubjectsConfirming(false);
     }
   }
 
@@ -283,6 +301,23 @@ const TestDataInfoDestructionSection: React.FC = () => {
               onStart={() => setResetStudiesConfirming(true)}
               onConfirm={() => void handleResetStudies()}
               onCancel={() => setResetStudiesConfirming(false)}
+            />
+          </div>
+
+          <div className="rounded-lg border border-rose-200 bg-white p-4 space-y-3">
+            <h4 className="text-sm font-semibold text-slate-800">Reset subject data</h4>
+            <p className="text-xs text-slate-500">
+              Truncate all Subject-domain tables (including status history). Use Generate subjects
+              (Data Generation tab) to repopulate. Patient and study data are untouched.
+            </p>
+            <ConfirmableResetButton
+              label="Reset subject data"
+              confirming={resetSubjectsConfirming}
+              loading={loadingResetSubjects}
+              isDemoMode={isDemoMode}
+              onStart={() => setResetSubjectsConfirming(true)}
+              onConfirm={() => void handleResetSubjects()}
+              onCancel={() => setResetSubjectsConfirming(false)}
             />
           </div>
         </div>

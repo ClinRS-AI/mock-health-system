@@ -488,3 +488,121 @@ export async function getStudyTestDataStats(): Promise<StudyTestDataStats> {
   const response = await api.get<StudyTestDataStats>("/api/v1/test-data/studies/stats");
   return response.data;
 }
+
+// Subject test data management
+
+export interface GenerateSubjectsOptions {
+  totalCount?: number;
+  seed?: number;
+}
+
+export interface GenerateSubjectsResult {
+  totalRequested: number;
+  totalInserted: number;
+  statusHistoryInserted: number;
+  totalAfter: number;
+}
+
+export interface SubjectPatientsByStudyCount {
+  studyId: number;
+  studyName: string;
+  patientCount: number;
+}
+
+export interface SubjectStatusCount {
+  statusName: string;
+  count: number;
+}
+
+export interface SubjectStudyStatusBreakdown {
+  studyId: number;
+  studyName: string;
+  totalCount: number;
+  byStatus: SubjectStatusCount[];
+}
+
+export interface SubjectTestDataStats {
+  subjectCount: number;
+  patientsByStudy: SubjectPatientsByStudyCount[];
+  topStudiesBySubjectStatus: SubjectStudyStatusBreakdown[];
+}
+
+export interface SubjectViewModel {
+  id: number;
+  uid: string;
+  study: { id: number; uid: string; name?: string | null };
+  site?: { id: number; uid: string; name?: string | null } | null;
+  patient: {
+    id: number;
+    uid?: string | null;
+    firstName: string;
+    middleName?: string | null;
+    lastName: string;
+    title?: string | null;
+    genderCode?: string | null;
+    race?: string | null;
+    ethnicity?: string | null;
+    dateOfBirth?: string | null;
+    name: string;
+  };
+  status: string;
+  protocolVersion?: { id: number; uid: string; name?: string | null } | null;
+  genderCode?: string | null;
+  race?: string | null;
+  ethnicity?: string | null;
+  arm?: { id: number; uid: string; name?: string | null } | null;
+  importId?: string | null;
+  tag?: string | null;
+  facilityCode?: string | null;
+  enrollmentDate: string;
+  enrollmentLocation?: string | null;
+  screeningNumber?: string | null;
+  randomizationNumber?: string | null;
+  treatmentStatus?: string | null;
+  treatmentStart?: string | null;
+  narrative?: string | null;
+  createdOn: string;
+  lastUpdatedOn: string;
+}
+
+export async function generateTestSubjects(
+  options: GenerateSubjectsOptions
+): Promise<GenerateSubjectsResult> {
+  const response = await api.post<GenerateSubjectsResult>(
+    "/api/v1/test-data/subjects/generate",
+    options
+  );
+  return response.data;
+}
+
+export async function resetTestSubjects(): Promise<void> {
+  await api.post("/api/v1/test-data/subjects/reset", {});
+}
+
+export async function lookupTestSubject(params: {
+  id?: number;
+  uid?: string;
+  patientId?: number;
+  studyId?: number;
+}): Promise<SubjectViewModel> {
+  const searchParams = new URLSearchParams();
+  if (params.id != null) searchParams.set("id", String(params.id));
+  if (params.uid) searchParams.set("uid", params.uid);
+  if (params.patientId != null) searchParams.set("patientId", String(params.patientId));
+  if (params.studyId != null) searchParams.set("studyId", String(params.studyId));
+
+  const response = await api.get<SubjectViewModel>(
+    `/api/v1/test-data/subjects/lookup?${searchParams.toString()}`
+  );
+  return response.data;
+}
+
+export async function getRandomTestSubject(): Promise<SubjectViewModel> {
+  const response = await api.get<SubjectViewModel>("/api/v1/test-data/subjects/random");
+  return response.data;
+}
+
+export async function getSubjectTestDataStats(): Promise<SubjectTestDataStats> {
+  const response = await api.get<SubjectTestDataStats>("/api/v1/test-data/subjects/stats");
+  return response.data;
+}

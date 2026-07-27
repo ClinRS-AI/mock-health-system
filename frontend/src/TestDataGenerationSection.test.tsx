@@ -56,6 +56,44 @@ describe("TestDataGenerationSection", () => {
     });
   });
 
+  it("submits subject generation and displays returned totals", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post("*/api/v1/test-data/subjects/generate", () =>
+        HttpResponse.json({
+          totalRequested: 25,
+          totalInserted: 25,
+          statusHistoryInserted: 25,
+          totalAfter: 25
+        })
+      )
+    );
+
+    renderWithAdminSession(<TestDataGenerationSection />);
+    await user.click(screen.getByRole("button", { name: /generate subjects/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/total after generation/i)).toBeInTheDocument();
+      expect(screen.getAllByText("25").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("shows an inline error when subject generation fails", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post("*/api/v1/test-data/subjects/generate", () =>
+        HttpResponse.json({}, { status: 400 })
+      )
+    );
+
+    renderWithAdminSession(<TestDataGenerationSection />);
+    await user.click(screen.getByRole("button", { name: /generate subjects/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/unable to generate subjects/i)).toBeInTheDocument();
+    });
+  });
+
   it("shows independent result summaries for staff and audit-event generation (AC3)", async () => {
     const user = userEvent.setup();
     server.use(

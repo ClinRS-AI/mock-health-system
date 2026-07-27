@@ -89,6 +89,32 @@ describe("TestDataInfoDestructionSection", () => {
     expect(patientResetSpy).not.toHaveBeenCalled();
   });
 
+  it("requires confirmation before a subject reset request fires, and only calls the subject reset endpoint", async () => {
+    const user = userEvent.setup();
+    const subjectResetSpy = vi.fn();
+    const patientResetSpy = vi.fn();
+    server.use(
+      http.post("*/api/v1/test-data/subjects/reset", () => {
+        subjectResetSpy();
+        return HttpResponse.json({});
+      }),
+      http.post("*/api/v1/test-data/patients/reset", () => {
+        patientResetSpy();
+        return HttpResponse.json({});
+      })
+    );
+
+    renderWithAdminSession(<TestDataInfoDestructionSection />);
+    await user.click(screen.getByRole("button", { name: /^reset subject data$/i }));
+
+    expect(subjectResetSpy).not.toHaveBeenCalled();
+    const confirmButton = await screen.findByRole("button", { name: /confirm reset/i });
+    await user.click(confirmButton);
+
+    await waitFor(() => expect(subjectResetSpy).toHaveBeenCalled());
+    expect(patientResetSpy).not.toHaveBeenCalled();
+  });
+
   it("renders no generation or lookup control anywhere in this component (AC5)", () => {
     renderWithAdminSession(<TestDataInfoDestructionSection />);
 
