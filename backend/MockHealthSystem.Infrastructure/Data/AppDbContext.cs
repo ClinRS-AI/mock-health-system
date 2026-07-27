@@ -69,6 +69,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<StudyCustomFieldValue> StudyCustomFieldValues => Set<StudyCustomFieldValue>();
     public DbSet<StudyStudyType> StudyStudyTypes => Set<StudyStudyType>();
 
+    public DbSet<Subject> Subjects => Set<Subject>();
+    public DbSet<SubjectStatus> SubjectStatuses => Set<SubjectStatus>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<PatientMedicationCondition>()
@@ -328,5 +331,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasOne(x => x.Study).WithMany(s => s.StudyTypes).HasForeignKey(x => x.StudyId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<StudyStudyType>()
             .HasOne(x => x.StudyType).WithMany().HasForeignKey(x => x.StudyTypeId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Subject>().HasIndex(x => x.Uid).IsUnique();
+        modelBuilder.Entity<Subject>()
+            .HasOne(x => x.Patient).WithMany().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Subject>()
+            .HasOne(x => x.Study).WithMany().HasForeignKey(x => x.StudyId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Subject>()
+            .HasOne(x => x.StudyArm).WithMany().HasForeignKey(x => x.StudyArmId).OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<Subject>()
+            .HasOne(x => x.Site).WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<Subject>()
+            .HasOne(x => x.ProtocolVersion).WithMany().HasForeignKey(x => x.ProtocolVersionId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SubjectStatus>()
+            .HasOne(x => x.Subject).WithMany(s => s.StatusHistory).HasForeignKey(x => x.SubjectId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<SubjectStatus>()
+            .HasOne(x => x.ChangedByStaff).WithMany().HasForeignKey(x => x.ChangedByStaffId).OnDelete(DeleteBehavior.SetNull);
     }
 }

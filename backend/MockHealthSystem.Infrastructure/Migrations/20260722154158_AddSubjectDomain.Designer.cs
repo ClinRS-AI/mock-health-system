@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MockHealthSystem.Infrastructure.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MockHealthSystem.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722154158_AddSubjectDomain")]
+    partial class AddSubjectDomain
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2195,44 +2198,14 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.Property<DateTime>("EnrollmentDate")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("EnrollmentLocation")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Ethnicity")
-                        .HasColumnType("text");
-
-                    b.Property<string>("FacilityCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("GenderCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ImportId")
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("LastUpdatedOn")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Narrative")
-                        .HasColumnType("text");
 
                     b.Property<int>("PatientId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("ProtocolVersionId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Race")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RandomizationNumber")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ScreeningNumber")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("SiteId")
-                        .HasColumnType("integer");
+                    b.Property<DateTime?>("ScreeningDate")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -2244,25 +2217,21 @@ namespace MockHealthSystem.Infrastructure.Migrations
                     b.Property<int>("StudyId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Tag")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("TreatmentStart")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("TreatmentStatus")
+                    b.Property<string>("SubjectIdentifier")
                         .HasColumnType("text");
 
                     b.Property<Guid>("Uid")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("WithdrawalDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WithdrawalReason")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PatientId");
-
-                    b.HasIndex("ProtocolVersionId");
-
-                    b.HasIndex("SiteId");
 
                     b.HasIndex("StudyArmId");
 
@@ -2926,16 +2895,6 @@ namespace MockHealthSystem.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("MockHealthSystem.Infrastructure.Data.Entities.ProtocolVersion", "ProtocolVersion")
-                        .WithMany()
-                        .HasForeignKey("ProtocolVersionId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("MockHealthSystem.Infrastructure.Data.Entities.Site", "Site")
-                        .WithMany()
-                        .HasForeignKey("SiteId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("MockHealthSystem.Infrastructure.Data.Entities.StudyArm", "StudyArm")
                         .WithMany()
                         .HasForeignKey("StudyArmId")
@@ -2948,10 +2907,6 @@ namespace MockHealthSystem.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Patient");
-
-                    b.Navigation("ProtocolVersion");
-
-                    b.Navigation("Site");
 
                     b.Navigation("Study");
 
