@@ -54,7 +54,14 @@ curl http://localhost:5001/api/v1/subjects
 curl "http://localhost:5001/api/v1/subjects?studyId=1"
 curl "http://localhost:5001/api/v1/subjects?patientId=5"
 
-# Fetch one subject's detail
+# Fetch one subject's detail — study/site/patient/protocolVersion/arm are
+# nested preview objects (matching a real CC Subject response — see
+# research.md Decision 12), not flat ids:
+#   { "id": 1, "uid": "...", "study": {"id":1,"uid":"...","name":"..."},
+#     "site": {"id":3,"uid":"...","name":"..."} or null,
+#     "patient": {"id":5,"firstName":"...","lastName":"...","name":"Doe, Jane",...},
+#     "status": "Randomized", "protocolVersion": {...} or null,
+#     "arm": {...} or null, "screeningNumber": "SCR-...", ... }
 curl http://localhost:5001/api/v1/subjects/1
 
 # A study's subject-status history (note: keyed by the study's UID, not its
@@ -77,12 +84,14 @@ Status is one of CC's nine defined values — Active category: `Prescreened`,
 itself a literal status — it's shorthand for "any Active-category status."
 
 ```bash
-# Enroll patient 5 in study 1
+# Enroll patient 5 in study 1 — status can't be set on create; every new
+# subject starts at "Prescreened" (research.md Decision 13)
 curl -X POST http://localhost:5001/api/v1/subjects \
   -H "Content-Type: application/json" \
-  -d '{"patientId": 5, "studyId": 1, "status": "Prescreened", "enrollmentDate": "2026-07-20T00:00:00Z"}'
+  -d '{"patientId": 5, "studyId": 1, "enrollmentDate": "2026-07-20T00:00:00Z"}'
 
-# Advance to an Active-category status (appends a SubjectStatus entry)
+# Advance to an Active-category status (appends a SubjectStatus entry) —
+# status/studyArmId/protocolVersionId are PUT/PATCH-only fields
 curl -X PUT http://localhost:5001/api/v1/subjects/1 \
   -H "Content-Type: application/json" \
   -d '{"patientId": 5, "studyId": 1, "status": "Randomized", "enrollmentDate": "2026-07-20T00:00:00Z"}'
@@ -90,7 +99,7 @@ curl -X PUT http://localhost:5001/api/v1/subjects/1 \
 # A second concurrently Active-category enrollment for the same pair is rejected (400)
 curl -X POST http://localhost:5001/api/v1/subjects \
   -H "Content-Type: application/json" \
-  -d '{"patientId": 5, "studyId": 1, "status": "Screened", "enrollmentDate": "2026-07-21T00:00:00Z"}'
+  -d '{"patientId": 5, "studyId": 1, "enrollmentDate": "2026-07-21T00:00:00Z"}'
 ```
 
 ---

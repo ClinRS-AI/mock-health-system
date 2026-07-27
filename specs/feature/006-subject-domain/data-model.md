@@ -5,7 +5,8 @@ rationale and CC-fidelity caveats are in [research.md](research.md) (Decision 1)
 
 ## Subject
 
-The enrollment-episode record linking one Patient to one Study.
+The enrollment-episode record linking one Patient to one Study. Field shape
+corrected in research.md Decision 12 against a real CC Subject response.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -13,24 +14,37 @@ The enrollment-episode record linking one Patient to one Study.
 | `Uid` | `Guid` | Generated on create; unique index (`HasIndex(x => x.Uid).IsUnique()`), matching every other `Uid`-bearing entity in this codebase (`Study`, `StudyArm`, `StudyVisit`, `StudyDocument`, `ProtocolVersion`, `Sponsor`) |
 | `PatientId` | `int` (FK → `Patients.Id`) | Required |
 | `StudyId` | `int` (FK → `Studies.Id`) | Required |
+| `SiteId` | `int?` (FK → `Sites.Id`) | Optional — CC exposes a `site` on Subject independent of `Patient.PrimarySite`/`Study.ManagingSite` |
 | `StudyArmId` | `int?` (FK → `StudyArms.Id`) | Optional; MUST belong to `StudyId`'s study (FR-006) |
+| `ProtocolVersionId` | `int?` (FK → `ProtocolVersions.Id`) | Optional; MUST belong to `StudyId`'s study |
 | `Status` | `string` | Required. One of CC's nine defined values (`SubjectStatusCatalog.AllStatuses`, research.md Decision 11): Active category — "Prescreened", "Screened", "Randomized", "Run-in"; Inactive category — "Screen Failed", "Non Qualified", "Dropped", "Run-in Failed", "Complete" |
-| `SubjectIdentifier` | `string?` | Optional. CC's screening/subject number — not every subject has one assigned (e.g. before screening completes) |
+| `GenderCode` | `string?` | Optional. Subject-level demographic snapshot — distinct from `Patient.GenderCode`, may diverge (real CTMS pattern: enrollment-time demographics are locked for reporting) |
+| `Race` | `string?` | Optional. Same snapshot rationale as `GenderCode` |
+| `Ethnicity` | `string?` | Optional. Same snapshot rationale as `GenderCode` |
+| `ImportId` | `string?` | Optional |
+| `Tag` | `string?` | Optional |
+| `FacilityCode` | `string?` | Optional |
 | `EnrollmentDate` | `DateTime` | Required (FR-002) |
-| `ScreeningDate` | `DateTime?` | Optional |
-| `WithdrawalDate` | `DateTime?` | Optional |
-| `WithdrawalReason` | `string?` | Optional |
+| `EnrollmentLocation` | `string?` | Optional |
+| `ScreeningNumber` | `string?` | Optional. CC's screening/subject number (`screeningNumber`) — not every subject has one assigned (e.g. before screening completes). Renamed from `SubjectIdentifier` in research.md Decision 12 to match CC's real field name |
+| `RandomizationNumber` | `string?` | Optional. Distinct from `ScreeningNumber` — assigned once a subject is randomized |
+| `TreatmentStatus` | `string?` | Optional. Distinct concept from `Status` — free text, CC's real vocabulary for it is unknown |
+| `TreatmentStart` | `DateTime?` | Optional |
+| `Narrative` | `string?` | Optional |
 | `CreatedOn` | `DateTime` | Set on create |
 | `LastUpdatedOn` | `DateTime` | Set on create and every update |
 
-**Navigation**: `Patient`, `Study`, `StudyArm?`, `StatusHistory: ICollection<SubjectStatus>`.
+**Navigation**: `Patient`, `Study`, `Site?`, `StudyArm?`, `ProtocolVersion?`, `StatusHistory: ICollection<SubjectStatus>`.
 
 **Validation rules** (enforced in `SubjectsController`, not at the DB layer,
 matching `StudiesController`'s established pattern):
 - `PatientId` MUST reference an existing `Patient` (FR-006).
 - `StudyId` MUST reference an existing `Study` (FR-006).
+- `SiteId`, if provided, MUST reference an existing `Site`.
 - `StudyArmId`, if provided, MUST reference a `StudyArm` whose `StudyId`
   equals this subject's `StudyId` (FR-006, edge case).
+- `ProtocolVersionId`, if provided, MUST reference a `ProtocolVersion` whose
+  `StudyId` equals this subject's `StudyId` (mirrors the `StudyArmId` check).
 - `Status` MUST be one of the nine CC-defined values (FR-002, FR-006) —
   checked against `SubjectStatusCatalog.AllStatuses`.
 - At most one `Subject` per `(PatientId, StudyId)` pair may have a `Status`
@@ -41,7 +55,10 @@ matching `StudiesController`'s established pattern):
 **Delete/cascade behavior** (`OnModelCreating`):
 - `Patient` → `DeleteBehavior.Cascade`
 - `Study` → `DeleteBehavior.Cascade`
+- `Site` → `DeleteBehavior.SetNull` (matches `Study.ManagingSite`'s precedent)
 - `StudyArm` → `DeleteBehavior.SetNull`
+- `ProtocolVersion` → `DeleteBehavior.Restrict` (matches
+  `StudyArm.ProtocolVersion`/`StudyVisit.ProtocolVersion`'s precedent)
 
 ## SubjectStatus
 
@@ -76,8 +93,11 @@ Append-only status-change history for a Subject. Structural mirror of
 
 ```
 Patient (existing) ──< Subject >── Study (existing)
-                          │              │
-                          │              └──< StudyArm (existing, optional FK)
+                          │  │           │
+                          │  │           ├──< StudyArm (existing, optional FK)
+                          │  │           └──< ProtocolVersion (existing, optional FK)
+                          │  │
+                          │  └── Site (existing, optional FK)
                           │
                           └──< SubjectStatus >── Staff (existing, optional FK)
 ```

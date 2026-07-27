@@ -113,15 +113,17 @@ longer Active — all via API calls.
    PATCHes a partial update, **Then** the changed fields are persisted and
    reflected on the next GET.
 3. **Given** a patient with no currently Active-category enrollment in a
-   study, **When** a client creates or updates a subject to an
-   Active-category status (e.g., "Randomized") for that patient/study pair,
-   **Then** the write succeeds.
+   study, **When** a client creates a subject for that patient/study pair
+   (always starting at the "Prescreened" status — status is not
+   client-specified at creation) or updates an existing subject to an
+   Active-category status (e.g., "Randomized"), **Then** the write succeeds.
 4. **Given** a patient already has a subject in an Active-category status
    (e.g., "Screened") for a specific study, **When** a client attempts to
-   create or update another subject to any Active-category status for that
-   same patient/study pair, **Then** the mock rejects the request with a
-   clear validation error rather than allowing two concurrently
-   Active-category enrollments.
+   create another subject for that same patient/study pair (which would
+   start Active-category), or updates another subject to any Active-category
+   status for that pair, **Then** the mock rejects the request with a clear
+   validation error rather than allowing two concurrently Active-category
+   enrollments.
 5. **Given** a patient's prior enrollment in a study is now in an
    Inactive-category status (e.g., "Complete" or "Dropped"), **When** a
    client creates a new subject for the same patient/study pair, **Then**
@@ -133,10 +135,11 @@ longer Active — all via API calls.
    silently creating an inconsistent record.
 7. **Given** an existing subject, **When** a client DELETEs it, **Then** it
    is removed and no longer returned on subsequent reads.
-8. **Given** an existing subject, **When** a client creates that subject
-   with an initial status, or updates it to a new status, **Then** a
-   status-history entry recording that status (and when it took effect) is
-   added, retrievable via that subject's study's status-history endpoint.
+8. **Given** a patient and study, **When** a client creates a subject for
+   them (recorded at its server-assigned initial "Prescreened" status), or
+   updates an existing subject to a new status, **Then** a status-history
+   entry recording that status (and when it took effect) is added,
+   retrievable via that subject's study's status-history endpoint.
 
 ---
 
@@ -223,9 +226,10 @@ reset) also results in zero remaining subject records.
   filter parameters?
 - What happens when a subject references a study arm that doesn't belong to
   the subject's own study?
-- What happens when a subject is created or updated with a status value
-  outside the nine CC-defined values? The request is rejected with a clear
-  validation error (FR-006).
+- What happens when a subject is updated with a status value outside the
+  nine CC-defined values? The request is rejected with a clear validation
+  error (FR-006). (Status is not client-specified at creation — every new
+  Subject starts at the server-assigned "Prescreened" status.)
 
 ## Requirements *(mandatory)*
 
@@ -240,9 +244,21 @@ reset) also results in zero remaining subject records.
   "Screened", "Randomized", "Run-in") and an Inactive category ("Screen
   Failed", "Non Qualified", "Dropped", "Run-in Failed", "Complete") — and
   key enrollment-episode dates (at minimum an enrollment date). A Subject
-  MAY optionally carry a subject/screening identifier (not every subject
-  has one assigned, e.g. before screening is complete) and MAY optionally
-  reference a specific Study Arm belonging to its own Study, once assigned.
+  MAY optionally carry a screening number, a randomization number, and
+  treatment/enrollment details (site, protocol version, study arm,
+  treatment status and start date, facility/import/tag identifiers,
+  enrollment location, a narrative note, and a subject-level
+  gender/race/ethnicity snapshot distinct from the referenced Patient's own
+  record) — matching the fuller field set the real CC Subject endpoint
+  exposes, confirmed directly against a live CC response during
+  implementation (see research.md Decision 12).
+- **FR-002a**: Creating a Subject MUST NOT accept a client-specified status,
+  Study Arm, Protocol Version, or subject-level gender/race/ethnicity
+  snapshot — a newly created Subject always starts at the "Prescreened"
+  status, matching the narrower field set the real CC Subject creation
+  endpoint accepts (confirmed directly against a real CC create request
+  during implementation; see research.md Decision 13). Those fields remain
+  settable via update once the Subject exists.
 - **FR-003**: The system MUST allow the same Patient to have multiple
   Subject records against the same Study over time (representing separate
   enrollment episodes), but MUST reject any create or update that would
@@ -261,9 +277,12 @@ reset) also results in zero remaining subject records.
   schema and simple-list (no additional query options) convention already
   used by this project's other `/odata`-suffixed endpoints.
 - **FR-006**: The system MUST reject Subject create/update requests that
-  reference a Patient, Study, or Study Arm that does not exist, a Study Arm
-  that does not belong to the referenced Study, or a status value outside
-  CC's nine defined Subject status values (FR-002).
+  reference a Patient or Study that does not exist. For fields settable only
+  via update (Study Arm, Protocol Version, status — not accepted at
+  creation; see FR-002a), the system MUST also reject a Study Arm that does
+  not belong to the referenced Study, a Protocol Version that does not
+  belong to the referenced Study, or a status value outside CC's nine
+  defined Subject status values.
 - **FR-007**: All implemented Subject endpoints (including the
   subject-status history endpoint) MUST return structurally valid,
   non-placeholder responses that match the field names and shapes of the
@@ -304,9 +323,12 @@ reset) also results in zero remaining subject records.
   Study — a status drawn from CC's nine defined values (Active category:
   "Prescreened", "Screened", "Randomized", "Run-in"; Inactive category:
   "Screen Failed", "Non Qualified", "Dropped", "Run-in Failed", "Complete"),
-  key enrollment dates, an optional subject/screening identifier, and an
-  optional reference to the specific Study Arm the patient has been
-  assigned to. Multiple Subject records may exist for the same
+  key enrollment dates, and optional references to the specific Site,
+  Study Arm, and Protocol Version involved. Also carries CC's fuller
+  enrollment field set — screening number, randomization number, treatment
+  status/start, facility/import/tag identifiers, enrollment location, a
+  narrative note, and a subject-level gender/race/ethnicity snapshot — per
+  research.md Decision 12. Multiple Subject records may exist for the same
   Patient/Study pair (representing separate enrollment episodes over
   time), but at most one per Patient/Study pair may be in an
   Active-category status at any given time.

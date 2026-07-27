@@ -39,6 +39,14 @@ PascalCase-mirrors-CC-camelCase convention (`SubjectIdentifier`,
 `EnrollmentDate`, etc.) consistent with how `Study`/`StudyDocument` name
 theirs.
 
+**Superseded by Decision 12**: after implementation, the user compared this
+shape directly against a real CC Subject response and found it diverged
+significantly (flat FK ids instead of nested previews, a missing
+Site/ProtocolVersion relationship, several missing CC fields, three invented
+fields not in CC's real schema). Decision 12 documents the correction; this
+decision's rationale is kept for historical context but the field list above
+is no longer current — see `data-model.md` for the authoritative shape.
+
 **Alternatives considered**:
 - Block planning on a working CC OpenAPI fetch — rejected: the tool has failed
   5 times across two sessions; there's no reason to expect a 6th attempt
@@ -350,3 +358,187 @@ CC-faithful choice.
   codebase doesn't otherwise use.
 - A `SubjectStatusType` lookup table mirroring `StudyStatusType` — rejected
   per the CC-fidelity rationale above.
+
+## Decision 12: Correcting Subject's shape against a real CC response
+
+**Decision**: After the Subject domain was implemented per Decision 1's
+best-effort field list, the user pasted the actual response returned by a
+real CC Subject GET endpoint. It differs substantially from what was built.
+This response is now the authoritative source, superseding Decision 1's
+assumptions. Concrete corrections:
+
+- **Nested previews, not flat FK ids.** CC returns `study`, `site`, `patient`,
+  `protocolVersion`, and `arm` as nested `{id, uid, name}`-shaped (or richer,
+  for `patient`) objects, not flat `studyId`/`siteId`/`patientId`/
+  `protocolVersionId`/`studyArmId` scalars. `SubjectViewModel` now mirrors
+  `StudyViewModel`'s existing convention exactly (`ManagingSite`,
+  `SponsorTeam` are nested previews there too) — reusing
+  `StudyPreviewModel`, `SitePreviewModel`, `StudyArmPreviewModel`,
+  `ProtocolVersionPreviewModel` (all pre-existing) plus a new
+  `SubjectPatientPreviewModel` for the richer patient object CC embeds
+  (first/middle/last name, title, gender/race/ethnicity, date of birth —
+  fields `Patient` already carries).
+- **Two relationships were missing entirely.** CC's Subject has its own
+  `site` and `protocolVersion` references, independent of `Patient.PrimarySite`
+  and `Study`. Added `Subject.SiteId` (optional FK → `Sites`,
+  `DeleteBehavior.SetNull` — matches `Study.ManagingSite`'s precedent) and
+  `Subject.ProtocolVersionId` (optional FK → `ProtocolVersions`, must belong
+  to the same Study, `DeleteBehavior.Restrict` — matches
+  `StudyArm.ProtocolVersion`/`StudyVisit.ProtocolVersion`'s precedent).
+- **CC fields that were missing**: `importId`, `tag`, `facilityCode`,
+  `enrollmentLocation`, `randomizationNumber` (distinct from
+  `screeningNumber`), `treatmentStatus` (distinct from the top-level
+  `status` — free text, CC's real vocabulary for it is unknown), `treatmentStart`,
+  `narrative`, and top-level `genderCode`/`race`/`ethnicity` (a subject-level
+  demographic snapshot, real stored columns — CC duplicates these outside the
+  nested `patient` object, consistent with how CTMS systems lock enrollment
+  -time demographics for regulatory reporting even as the patient's live
+  record changes). All added as nullable columns/fields; the faker
+  independently fakes plausible values for `genderCode`/`race`/`ethnicity`
+  rather than copying the referenced patient's actual values, to avoid an
+  extra patient lookup in `SubjectFakerService` for a mock-data field where
+  exact correlation isn't load-bearing.
+- **Field renamed**: `SubjectIdentifier` → `ScreeningNumber`, matching CC's
+  actual field name (`screeningNumber`).
+- **Three invented fields removed**: `ScreeningDate`, `WithdrawalDate`,
+  `WithdrawalReason` don't exist in CC's real schema — they were guesses made
+  when the live OpenAPI fetch failed during specification (Decision 1).
+- **`arm`'s casing in CC's own example** (`{"Id":0,"Uid":"...","Name":"..."}`,
+  PascalCase, unlike every other field in the same response) is judged to be
+  a Swagger example-generation artifact on CC's side, not a real
+  serialization difference — not replicated. `Arm` is exposed camelCase like
+  the rest of this API and the rest of CC's own response.
+- **Kept, not in CC's example**: `createdOn`/`lastUpdatedOn` — additive-only,
+  matches this project's own established convention on every other
+  ViewModel (`StudyViewModel`, etc.); CC's Swagger example likely just omits
+  audit/meta fields from its documented example rather than not having them.
+
+**Write path unchanged in shape**: `SubjectEditModel`/`SubjectPatchModel`
+still take flat scalar FK ids (`PatientId`, `StudyId`, `SiteId?`,
+`StudyArmId?`, `ProtocolVersionId?`) — this was already correct and mirrors
+`StudyEditModel.ManagingSiteId`'s established nested-on-read/flat-on-write
+split; CC's response shape only concerns the read side.
+
+**Alternatives considered**:
+- Leave the flat-id shape and just add the missing fields — rejected: the
+  user's explicit ask was to match CC "as closely as possible," and the
+  flat-vs-nested divergence was the single largest structural gap, not a
+  minor detail.
+- Auto-populate `Subject.GenderCode`/`Race`/`Ethnicity` from the referenced
+  `Patient`'s current values at create/generate time — rejected for the
+  write path (adds a patient-lookup dependency to `SubjectsController` for
+  a non-load-bearing convenience) but reconsidered per-caller: clients can
+  already set these explicitly via `SubjectEditModel`, and the faker fakes
+  independently. If real CC semantics turn out to require exact
+  patient-value snapshotting, this can be revisited without a further shape
+  change (the columns already exist).
+
+## Decision 13: Narrowing the Subject POST body to CC's real create shape
+
+**Decision**: The user compared this app's POST `/subjects` request body
+against CC's real Subject creation payload and found this app accepted six
+fields CC's create endpoint does not: `studyArmId`, `protocolVersionId`,
+`status`, `genderCode`, `race`, `ethnicity`. CC's real POST body accepts only
+13 fields: `patientId`, `studyId`, `siteId`, `importId`, `tag`,
+`facilityCode`, `enrollmentDate`, `enrollmentLocation`, `screeningNumber`,
+`randomizationNumber`, `treatmentStatus`, `treatmentStart`, `narrative`. Those
+six extra fields are set later, via `PUT`/`PATCH`, not at creation.
+
+- **New `SubjectCreateModel`**, used only by `POST /subjects`, contains
+  exactly the 13 CC-accepted fields. `SubjectEditModel` (now documented as
+  PUT-only) keeps the full field set including `StudyArmId`/
+  `ProtocolVersionId`/`Status`/`GenderCode`/`Race`/`Ethnicity` — those remain
+  settable via `PUT`/`PATCH`, just not at creation. `SubjectPatchModel` is
+  unaffected.
+- **Server-assigned initial status**: since `status` isn't client-settable at
+  creation, every new Subject starts at `SubjectStatusCatalog.InitialStatus =
+  "Prescreened"` (the first status in CC's chronological vocabulary, and
+  already an Active-category status, so the existing
+  one-Active-category-per-pair conflict check still applies meaningfully to
+  creates).
+- **`SubjectMappingService.ApplyCreateModel`** is a new method distinct from
+  `ApplyEditModel` — it sets the 13 create fields plus the server-assigned
+  status, and deliberately leaves `StudyArmId`/`ProtocolVersionId`/
+  `GenderCode`/`Race`/`Ethnicity` at the entity's defaults (null).
+- **`SubjectsController.CreateSubject`** validates with `StudyArmId: null`,
+  `ProtocolVersionId: null`, `Status: SubjectStatusCatalog.InitialStatus` —
+  `ValidateEditModelAsync`'s per-field checks for those three now only ever
+  fire from `PUT`/`PATCH`, since `POST` can no longer supply values for them.
+- **`SubjectFakerService` is unaffected.** It constructs `Subject` entities
+  directly rather than going through `SubjectCreateModel`/`SubjectEditModel`,
+  so it still sets `StudyArmId`/`ProtocolVersionId`/a random status (from
+  `SubjectStatusCatalog.AllStatuses`, not just `InitialStatus`) directly on
+  generated entities — this mirrors how test-data generation already bypasses
+  API-level constraints elsewhere in the codebase to produce varied data.
+- **Test impact**: the three integration tests that POSTed an out-of-scope
+  field to trigger a 400 (invalid status, protocol-version/study mismatch,
+  study-arm/study mismatch) no longer exercise reachable behavior on
+  `POST` — those fields are silently dropped by model binding rather than
+  validated. Relocated as `UpdateSubject_Returns400_When...` tests against
+  `PUT`, which still accepts and validates all three.
+
+**Alternatives considered**:
+- Keep one `SubjectEditModel` for both POST and PUT, and just ignore the
+  extra fields in `ApplyCreateModel`-equivalent logic within the same
+  controller action — rejected: the six fields would still be present (and
+  silently no-op) in the OpenAPI-visible request schema for POST, which is
+  exactly the mismatch-with-CC's-real-schema the user flagged. A distinct
+  `SubjectCreateModel` makes the accepted-field set self-documenting via the
+  type itself.
+- Reject unknown JSON properties on POST (e.g. via strict model binding) so
+  sending `status`/`studyArmId`/etc. at creation is a 400 instead of a silent
+  no-op — rejected: this project doesn't use strict/unknown-property
+  rejection anywhere else, and CC's own real API doesn't error on extra POST
+  fields either (based on the user's comparison); silent-ignore matches real
+  CC behavior most closely.
+
+## Decision 14: Wrapping `GET /subjects/odata` in CC's paged result shape
+
+**Decision**: The user compared `GET /subjects/odata`'s response against
+CC's documented shape and found this app returns a bare JSON array where CC
+wraps results in `{ "Items": [...], "NextPageLink": "string", "Count": 0 }`,
+and accepts a `queryOptions` header plus a `studyId` query parameter this
+app's endpoint lacked entirely. Rather than invent a new paging shape, this
+adopts an existing in-repo precedent directly: `SystemController.cs`'s
+`conditions/odata`/`medications/odata`/`allergies/odata` endpoints already
+return `MockHealthSystem.Api.Models.System.ODataPageResult<T>` and already
+accept the identical `queryOptions`/`skip`/`top` parameters.
+
+- **`ODataPageResult<SubjectViewModel>`** (reusing the existing generic type
+  from `Models/System/`, not a Subject-local duplicate) replaces the bare
+  `IEnumerable<SubjectViewModel>` return shape. `Items` holds the page,
+  `Count` is the total matching row count computed before paging, and
+  `NextPageLink` is always `null` — matching every existing usage of this
+  type; no endpoint in this codebase computes a real next-page link.
+- **`queryOptions`** (`[FromHeader(Name = "queryOptions")] string?`) is
+  accepted but never parsed — an unused pass-through kept only for wire
+  compatibility with real CC clients, exactly matching `SystemController`'s
+  own documented rationale for the same parameter.
+- **`studyId`** (`[FromQuery] int?`) has no existing `/odata` precedent
+  elsewhere in this codebase, because every other `/odata` action belongs to
+  a route already scoped under its parent (e.g.
+  `/studies/{studyId}/milestones/odata`), so the parent id comes from the
+  route, not the query string. `Subject` is a top-level resource
+  (`/subjects`, no parent segment), so `studyId` is a query filter instead —
+  mirroring how the sibling `GetSubjects` action (non-odata) already filters
+  by `studyId` the same way.
+- **`top` is clamped via the existing `SubjectSearchLimits.ClampLimit`**
+  (already used by `GetSubjects`, caps at `MaxLimit = 5000`) rather than
+  duplicating `SystemController`'s inline clamp (which has no upper bound) —
+  this keeps pagination behavior consistent across both of `SubjectsController`'s
+  list actions rather than introducing a second, less-safe paging rule.
+- **`GET /subjects` (non-odata) is unchanged** — it keeps its own
+  `skip`/`limit` naming and bare-array response; the user's request was
+  scoped to `/subjects/odata` specifically, and CC's own real API keeps
+  these as two distinct endpoints with two distinct shapes.
+
+**Alternatives considered**:
+- Define a Subject-local paging wrapper instead of reusing
+  `Models.System.ODataPageResult<T>` — rejected: the type is already
+  generic and shape-identical to what CC's Subject odata endpoint needs; a
+  duplicate would just be the same three properties under a different name,
+  with no Subject-specific behavior to justify it.
+- Actually apply/parse `queryOptions` (e.g., real OData `$filter`/`$orderby`
+  parsing) — rejected: out of scope for this change and inconsistent with
+  every existing `queryOptions` usage in this codebase, which all treat it
+  as accepted-but-ignored.
