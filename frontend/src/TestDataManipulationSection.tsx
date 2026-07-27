@@ -6,7 +6,10 @@ import {
   type LookupPatientResponse,
   lookupTestStudy,
   getRandomTestStudy,
-  type StudyViewModel
+  type StudyViewModel,
+  lookupTestSubject,
+  getRandomTestSubject,
+  type SubjectViewModel
 } from "./api";
 import { useAdminSession } from "./AdminSessionContext";
 
@@ -39,6 +42,11 @@ const TestDataManipulationSection: React.FC<TestDataManipulationSectionProps> = 
   const [studiesLookupResult, setStudiesLookupResult] = useState<StudyViewModel | null>(null);
   const [studiesLookupNotFound, setStudiesLookupNotFound] = useState(false);
   const [loadingStudiesLookup, setLoadingStudiesLookup] = useState(false);
+
+  const [subjectLookupForm, setSubjectLookupForm] = useState({ id: "", patientId: "", studyId: "" });
+  const [subjectLookupResult, setSubjectLookupResult] = useState<SubjectViewModel | null>(null);
+  const [subjectLookupNotFound, setSubjectLookupNotFound] = useState(false);
+  const [loadingSubjectLookup, setLoadingSubjectLookup] = useState(false);
 
   async function handleLookupPatient(e: React.FormEvent) {
     e.preventDefault();
@@ -188,6 +196,70 @@ const TestDataManipulationSection: React.FC<TestDataManipulationSectionProps> = 
       }
     } finally {
       setLoadingStudiesLookup(false);
+    }
+  }
+
+  async function handleLookupSubject(e: React.FormEvent) {
+    e.preventDefault();
+    if (isDemoMode) return;
+    const idTrim = subjectLookupForm.id.trim();
+    const patientIdTrim = subjectLookupForm.patientId.trim();
+    const studyIdTrim = subjectLookupForm.studyId.trim();
+    const idVal = idTrim ? Number(idTrim) : undefined;
+    if (idVal !== undefined && Number.isNaN(idVal)) return;
+    const patientIdVal = patientIdTrim ? Number(patientIdTrim) : undefined;
+    const studyIdVal = studyIdTrim ? Number(studyIdTrim) : undefined;
+    const params =
+      idVal !== undefined
+        ? { id: idVal }
+        : patientIdVal !== undefined && studyIdVal !== undefined
+          ? { patientId: patientIdVal, studyId: studyIdVal }
+          : undefined;
+    if (!params) return;
+    try {
+      setLoadingSubjectLookup(true);
+      setError(null);
+      setSubjectLookupResult(null);
+      setSubjectLookupNotFound(false);
+
+      const result = await lookupTestSubject(params);
+      setSubjectLookupResult(result);
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 404) {
+        setSubjectLookupNotFound(true);
+        setSubjectLookupResult(null);
+      } else {
+        console.error(err);
+        setError("Unable to lookup subject. Check the admin key and backend.");
+        setSubjectLookupResult(null);
+      }
+    } finally {
+      setLoadingSubjectLookup(false);
+    }
+  }
+
+  async function handleGetRandomSubject() {
+    if (isDemoMode) return;
+    try {
+      setLoadingSubjectLookup(true);
+      setError(null);
+      setSubjectLookupNotFound(false);
+
+      const result = await getRandomTestSubject();
+      setSubjectLookupResult(result);
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 404) {
+        setSubjectLookupNotFound(true);
+        setSubjectLookupResult(null);
+      } else {
+        console.error(err);
+        setError("Unable to get a random subject. Check the admin key and backend.");
+        setSubjectLookupResult(null);
+      }
+    } finally {
+      setLoadingSubjectLookup(false);
     }
   }
 
@@ -384,6 +456,76 @@ const TestDataManipulationSection: React.FC<TestDataManipulationSectionProps> = 
             <div className="font-semibold">Study record</div>
             <pre className="max-h-[420px] overflow-auto rounded bg-slate-900 p-2 text-[11px] text-slate-100 whitespace-pre-wrap">
               {JSON.stringify(studiesLookupResult, null, 2)}
+            </pre>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-slate-800">Lookup subject</h3>
+        <p className="text-xs text-slate-500">
+          Find a subject by ID, or by patient ID together with study ID.
+        </p>
+        <form onSubmit={handleLookupSubject} className="space-y-3 max-w-sm">
+          <label className="block text-xs text-slate-700">
+            <span className="block mb-1">ID</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g. 500"
+              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+              value={subjectLookupForm.id}
+              onChange={(e) => setSubjectLookupForm((f) => ({ ...f, id: e.target.value }))}
+            />
+          </label>
+          <label className="block text-xs text-slate-700">
+            <span className="block mb-1">Patient ID</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g. 42"
+              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+              value={subjectLookupForm.patientId}
+              onChange={(e) => setSubjectLookupForm((f) => ({ ...f, patientId: e.target.value }))}
+            />
+          </label>
+          <label className="block text-xs text-slate-700">
+            <span className="block mb-1">Study ID</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g. 7"
+              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+              value={subjectLookupForm.studyId}
+              onChange={(e) => setSubjectLookupForm((f) => ({ ...f, studyId: e.target.value }))}
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={loadingSubjectLookup}
+            className="inline-flex items-center justify-center rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 disabled:opacity-70"
+          >
+            {loadingSubjectLookup ? "Looking up…" : "Lookup"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleGetRandomSubject()}
+            disabled={loadingSubjectLookup}
+            className="ml-2 inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 disabled:opacity-70"
+          >
+            {loadingSubjectLookup ? "Loading…" : "Get random"}
+          </button>
+        </form>
+        {subjectLookupNotFound && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            No subject found for the given ID, or patient ID + study ID.
+          </div>
+        )}
+        {subjectLookupResult && (
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 space-y-2">
+            <div className="font-semibold">Subject record</div>
+            <pre className="max-h-[420px] overflow-auto rounded bg-slate-900 p-2 text-[11px] text-slate-100 whitespace-pre-wrap">
+              {JSON.stringify(subjectLookupResult, null, 2)}
             </pre>
           </div>
         )}

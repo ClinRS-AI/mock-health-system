@@ -4,7 +4,8 @@ import type {
   MonitoredRequestSummary,
   MonitoringStats,
   PatientTestDataStats,
-  StudyTestDataStats
+  StudyTestDataStats,
+  SubjectTestDataStats
 } from "./api";
 
 export const DEMO_AUTH_SETTINGS: AuthSettings = {
@@ -260,5 +261,51 @@ export const DEMO_STUDY_TEST_DATA_STATS: StudyTestDataStats = {
     { sponsorName: "Acme Pharma", count: 64 },
     { sponsorName: "Northwind Biotech", count: 30 },
     { sponsorName: "Contoso Research", count: 52 }
+  ]
+};
+
+export const DEMO_SUBJECT_TEST_DATA_STATS: SubjectTestDataStats = {
+  subjectCount: 892,
+  patientsByStudy: [
+    { studyId: 1, studyName: "Acme Cardio Adjuvant Study", patientCount: 214 },
+    { studyId: 2, studyName: "Northwind Oncology Follow-up", patientCount: 158 },
+    { studyId: 3, studyName: "Contoso Neurology Trial", patientCount: 96 }
+  ],
+  topStudiesBySubjectStatus: [
+    {
+      studyId: 1,
+      studyName: "Acme Cardio Adjuvant Study",
+      totalCount: 240,
+      byStatus: [
+        { statusName: "Complete", count: 60 },
+        { statusName: "Dropped", count: 12 },
+        { statusName: "Prescreened", count: 40 },
+        { statusName: "Randomized", count: 70 },
+        { statusName: "Screened", count: 58 }
+      ]
+    },
+    {
+      studyId: 2,
+      studyName: "Northwind Oncology Follow-up",
+      totalCount: 180,
+      byStatus: [
+        { statusName: "Complete", count: 50 },
+        { statusName: "Prescreened", count: 35 },
+        { statusName: "Randomized", count: 55 },
+        { statusName: "Screen Failed", count: 10 },
+        { statusName: "Screened", count: 30 }
+      ]
+    },
+    {
+      studyId: 3,
+      studyName: "Contoso Neurology Trial",
+      totalCount: 110,
+      byStatus: [
+        { statusName: "Complete", count: 20 },
+        { statusName: "Prescreened", count: 25 },
+        { statusName: "Randomized", count: 30 },
+        { statusName: "Screened", count: 35 }
+      ]
+    }
   ]
 };

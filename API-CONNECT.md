@@ -148,10 +148,12 @@ Send the same credentials you use for other protected endpoints (e.g. `Authoriza
 | Patients   | `/api/v1/patients`     | Yes*           | CRUD and sub-resources (devices, allergies, providers, etc.). *When mode is None, no auth. |
 | Studies    | `/api/v1/studies`      | Yes*           | CRUD plus structural sub-resources: Arms, Visits (+ visit-arm association), Milestones, Documents (+ status history), Notes, Roles/personnel, Protocol Versions, and study-type association. Contact info (IRB/CRO/lab/monitor/vendor) is embedded in the study record itself, not a separate endpoint. *When mode is None, no auth. |
 | Study lookups | `/api/v1/system/study-*` | Admin†     | Categories, subcategories, types, statuses, groups — Mock-Health-System admin configuration for populating study records, **not** part of the CC auth-mode-gated surface above. Categories/subcategories support GET/POST/PUT/DELETE; types/statuses/groups are read-only. †Same admin headers as [Admin endpoints](#admin-endpoints); open when no admin key is configured. |
+| Subjects   | `/api/v1/subjects`     | Yes*           | The enrollment-episode record linking one Patient to one Study: list (filterable by `patientId`/`studyId`/`status`), get by ID, `odata`, create, full update (PUT), partial update (PATCH), delete. Enforces CC's "only one Active-category status per patient per study" rule (Active category: Prescreened, Screened, Randomized, Run-in). *When mode is None, no auth. |
+| Subject status history | `/api/v1/studies/{studyUid}/subject-statuses/odata` | Yes* | Study-scoped, **`studyUid`**-keyed (not the numeric study ID, unlike every other Study sub-resource route) read-only status-change history for subjects enrolled in that study — mirrors the real CC API's key for this specific endpoint. *When mode is None, no auth. |
 | Admin session | `/api/v1/admin/sessions` | No (mint)  | POST only; exchanges static admin key for JWT (see [Admin endpoints](#admin-endpoints)). |
 | Auth settings | `/api/v1/auth-settings` | Admin*   | GET/PUT; *requires `X-Admin-Key` or valid `X-Admin-Session` JWT if `AUTH_SETTINGS_ADMIN_KEY` is set. |
 | Monitoring | `/api/v1/monitoring`    | Admin*     | GET `/requests`, GET `/requests/{id}`, GET `/stats`; same admin headers when `AUTH_SETTINGS_ADMIN_KEY` is set. |
-| Test data  | `/api/v1/test-data`     | Admin*†    | Generate/reset/lookup test patients and studies, and related operations. *Same admin headers when key is set. †In `Development`, test-data routes skip admin checks (convenience for local workflows); use non-Development environments to enforce the key. **GET `/api/v1/test-data/soap/report-pkeys`** lists SOAP `pkey` values from `ReportQueryDefinitions` (PKeys only, no SQL). |
+| Test data  | `/api/v1/test-data`     | Admin*†    | Generate/reset/lookup test patients, studies, and subjects, and related operations. *Same admin headers when key is set. †In `Development`, test-data routes skip admin checks (convenience for local workflows); use non-Development environments to enforce the key. **GET `/api/v1/test-data/soap/report-pkeys`** lists SOAP `pkey` values from `ReportQueryDefinitions` (PKeys only, no SQL). |
 
 ---
 
@@ -198,8 +200,9 @@ JWT signing: prefer env **`ADMIN_SESSION_SIGNING_KEY`** (or config `AdminSession
 
 ### Test data
 
-- Prefix **`/api/v1/test-data/`** (e.g. patients generate/reset/stats, studies generate/reset/lookup/random/stats, staff, audit events).
+- Prefix **`/api/v1/test-data/`** (e.g. patients generate/reset/stats, studies generate/reset/lookup/random/stats, subjects generate/reset/lookup/random/stats, staff, audit events).
 - Studies: `POST /studies/generate` (default 25, populates arms/visits/milestones/documents/notes/contacts; auto-seeds prerequisite sponsor/lookup rows if none exist), `POST /studies/reset` (`?includeLookups=true` also clears Sponsor/Division/Team and study lookup tables), `GET /studies/lookup` (by `id`/`uid`/`name`/`identifier`/`protocolNumber` fragment), `GET /studies/random`, `GET /studies/stats`.
+- Subjects: `POST /subjects/generate` (default 25; links only existing patients and studies, never creates them — fails clearly if either is empty), `POST /subjects/reset` (clears Subject and SubjectStatus data only), `GET /subjects/lookup` (by `id`/`uid`, or `patientId`+`studyId` together), `GET /subjects/random`, `GET /subjects/stats` (total count plus per-study distinct-patient breakdown). Resetting patients or studies also removes any Subject data referencing what was removed — no separate Subject reset is required in that case.
 - When `AUTH_SETTINGS_ADMIN_KEY` is set, send the same admin headers as for auth settings **unless** the server runs in **`Development`**, in which case test-data endpoints skip admin validation for local convenience. Auth settings and monitoring **always** enforce the admin key when it is set.
 
 ---
