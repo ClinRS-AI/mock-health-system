@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MockHealthSystem.Api.Models.Patients;
 using MockHealthSystem.Api.Models.Studies;
+using MockHealthSystem.Api.Models.Subjects;
 using MockHealthSystem.Api.Services;
 using MockHealthSystem.Api.Services.AdminSession;
 using MockHealthSystem.Api.Swagger;
@@ -1522,6 +1523,245 @@ RESTART IDENTITY CASCADE;
         return defaults.ToList();
     }
 
+    // ==================== Subject test data ====================
+
+    /// <summary>
+    /// Generates synthetic subjects linking existing patients and studies. Never creates new
+    /// patients or studies (see SubjectFakerService / research.md Decision 7).
+    /// </summary>
+    /// <param name="request">Generation options. Defaults: 25 subjects.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpPost("subjects/generate")]
+    [ProducesResponseType(typeof(GenerateSubjectsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GenerateSubjectsAsync(
+        [FromBody] GenerateSubjectsRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        var totalCount = request?.TotalCount ?? 25;
+        if (totalCount <= 0)
+        {
+            return BadRequest("TotalCount must be greater than zero.");
+        }
+
+        const int maxCount = 500;
+        if (totalCount > maxCount)
+        {
+            return BadRequest($"TotalCount must not exceed {maxCount}.");
+        }
+
+        var patientIds = await _db.Patients.Select(p => p.Id).ToListAsync(cancellationToken);
+        if (patientIds.Count == 0)
+        {
+            return BadRequest("No patients exist yet. Generate patients before generating subjects.");
+        }
+
+        var studyIds = await _db.Studies.Select(s => s.Id).ToListAsync(cancellationToken);
+        if (studyIds.Count == 0)
+        {
+            return BadRequest("No studies exist yet. Generate studies before generating subjects.");
+        }
+
+        var siteIds = await _db.Sites.Select(s => s.Id).ToListAsync(cancellationToken);
+
+        var studyArmIdsByStudyId = (await _db.StudyArms
+                .Select(a => new { a.StudyId, a.Id })
+                .ToListAsync(cancellationToken))
+            .GroupBy(a => a.StudyId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<int>)g.Select(a => a.Id).ToList());
+
+        var protocolVersionIdsByStudyId = (await _db.ProtocolVersions
+                .Select(pv => new { pv.StudyId, pv.Id })
+                .ToListAsync(cancellationToken))
+            .GroupBy(pv => pv.StudyId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<int>)g.Select(pv => pv.Id).ToList());
+
+        var existingActiveCategoryPairs = await _db.Subjects
+            .Where(s => SubjectStatusCatalog.ActiveStatuses.Contains(s.Status))
+            .Select(s => new { s.PatientId, s.StudyId })
+            .ToListAsync(cancellationToken);
+
+        var fakerService = new SubjectFakerService(
+            request?.Seed,
+            patientIds,
+            studyIds,
+            siteIds,
+            studyArmIdsByStudyId,
+            protocolVersionIdsByStudyId,
+            existingActiveCategoryPairs.Select(p => (p.PatientId, p.StudyId)).ToList());
+        var subjects = fakerService.CreateSubjects(totalCount);
+
+        await _db.Subjects.AddRangeAsync(subjects, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Ok(new GenerateSubjectsResponse
+        {
+            TotalRequested = totalCount,
+            TotalInserted = subjects.Count,
+            StatusHistoryInserted = subjects.Sum(s => s.StatusHistory.Count),
+            TotalAfter = await _db.Subjects.CountAsync(cancellationToken)
+        });
+    }
+
+    /// <summary>Resets all Subject-domain data using TRUNCATE. Does not affect Patient or Study data.</summary>
+    [HttpPost("subjects/reset")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ResetSubjectsAsync(CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        const string truncateSubjectSql = """
+TRUNCATE TABLE
+    "SubjectStatuses",
+    "Subjects"
+RESTART IDENTITY CASCADE;
+""";
+        await _db.Database.ExecuteSqlRawAsync(truncateSubjectSql, cancellationToken);
+
+        return Ok();
+    }
+
+    /// <summary>Looks up a single subject by ID, UID, or by patientId+studyId together.</summary>
+    [HttpGet("subjects/lookup")]
+    [ProducesResponseType(typeof(SubjectViewModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> LookupSubjectAsync(
+        [FromQuery] int? id,
+        [FromQuery] Guid? uid,
+        [FromQuery] int? patientId,
+        [FromQuery] int? studyId,
+        CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        if (!id.HasValue && !uid.HasValue && !(patientId.HasValue && studyId.HasValue))
+        {
+            return BadRequest("Provide one of: id, uid, or patientId together with studyId.");
+        }
+
+        Subject? subject;
+        if (id.HasValue)
+        {
+            subject = await SubjectIncludeAllQuery().FirstOrDefaultAsync(s => s.Id == id.Value, cancellationToken);
+        }
+        else if (uid.HasValue)
+        {
+            subject = await SubjectIncludeAllQuery().FirstOrDefaultAsync(s => s.Uid == uid.Value, cancellationToken);
+        }
+        else
+        {
+            subject = await SubjectIncludeAllQuery().FirstOrDefaultAsync(s => s.PatientId == patientId!.Value && s.StudyId == studyId!.Value, cancellationToken);
+        }
+
+        if (subject == null) return NotFound();
+        return Ok(SubjectMappingService.ToViewModel(subject));
+    }
+
+    /// <summary>Looks up a random subject record from the database.</summary>
+    [HttpGet("subjects/random")]
+    [ProducesResponseType(typeof(SubjectViewModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetRandomSubjectAsync(CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        var subjectCount = await _db.Subjects.CountAsync(cancellationToken);
+        if (subjectCount == 0) return NotFound();
+
+        var randomIndex = Random.Shared.Next(subjectCount);
+        var subject = await SubjectIncludeAllQuery().OrderBy(s => s.Id).Skip(randomIndex).FirstOrDefaultAsync(cancellationToken);
+        return subject == null ? NotFound() : Ok(SubjectMappingService.ToViewModel(subject));
+    }
+
+    private IQueryable<Subject> SubjectIncludeAllQuery() => _db.Subjects
+        .Include(s => s.Patient)
+        .Include(s => s.Study)
+        .Include(s => s.Site)
+        .Include(s => s.ProtocolVersion)
+        .Include(s => s.StudyArm);
+
+    /// <summary>Returns summary statistics for Subject test data: total count, the count of
+    /// distinct patients enrolled per study (a patient with multiple episodes in the same study
+    /// counts once), and — for the top 10 studies by subject volume — a breakdown of subject
+    /// counts by status, used to render a stacked bar chart.</summary>
+    [HttpGet("subjects/stats")]
+    [ProducesResponseType(typeof(SubjectTestDataStatsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetSubjectTestDataStatsAsync(CancellationToken cancellationToken)
+    {
+        if (!_adminRequestValidator.IsAdminRequest(HttpContext, bypassAdminChecksInDevelopment: true))
+        {
+            return Forbid();
+        }
+
+        var patientsByStudy = await _db.Subjects
+            .AsNoTracking()
+            .Include(s => s.Study)
+            .GroupBy(s => new { s.StudyId, s.Study.Name })
+            .Select(g => new SubjectPatientsByStudyCountDto
+            {
+                StudyId = g.Key.StudyId,
+                StudyName = g.Key.Name,
+                PatientCount = g.Select(s => s.PatientId).Distinct().Count()
+            })
+            .OrderBy(x => x.StudyName)
+            .ToListAsync(cancellationToken);
+
+        // Materialize flat (study, status) counts first, then reshape/rank in memory — keeps the
+        // EF query simple (no nested grouping) and portable across the InMemory test provider.
+        var studyStatusCounts = await _db.Subjects
+            .AsNoTracking()
+            .Include(s => s.Study)
+            .GroupBy(s => new { s.StudyId, s.Study.Name, s.Status })
+            .Select(g => new { g.Key.StudyId, g.Key.Name, g.Key.Status, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        var topStudiesBySubjectStatus = studyStatusCounts
+            .GroupBy(x => new { x.StudyId, x.Name })
+            .Select(g => new SubjectStudyStatusBreakdownDto
+            {
+                StudyId = g.Key.StudyId,
+                StudyName = g.Key.Name,
+                TotalCount = g.Sum(x => x.Count),
+                ByStatus = g
+                    .Select(x => new SubjectStatusCountDto { StatusName = x.Status, Count = x.Count })
+                    .OrderBy(x => x.StatusName)
+                    .ToList()
+            })
+            .OrderByDescending(x => x.TotalCount)
+            .ThenBy(x => x.StudyName)
+            .Take(10)
+            .ToList();
+
+        var stats = new SubjectTestDataStatsDto
+        {
+            SubjectCount = await _db.Subjects.CountAsync(cancellationToken),
+            PatientsByStudy = patientsByStudy,
+            TopStudiesBySubjectStatus = topStudiesBySubjectStatus
+        };
+
+        return Ok(stats);
+    }
+
     public sealed class GenerateStudiesRequest
     {
         public int? TotalCount { get; set; }
@@ -1561,6 +1801,48 @@ RESTART IDENTITY CASCADE;
         public int DocumentCount { get; set; }
         public IReadOnlyList<StudyStatusCountDto> StudiesByStatus { get; set; } = Array.Empty<StudyStatusCountDto>();
         public IReadOnlyList<StudySponsorCountDto> StudiesBySponsor { get; set; } = Array.Empty<StudySponsorCountDto>();
+    }
+
+    public sealed class GenerateSubjectsRequest
+    {
+        public int? TotalCount { get; set; }
+        public int? Seed { get; set; }
+    }
+
+    public sealed class GenerateSubjectsResponse
+    {
+        public int TotalRequested { get; set; }
+        public int TotalInserted { get; set; }
+        public int StatusHistoryInserted { get; set; }
+        public int TotalAfter { get; set; }
+    }
+
+    public sealed class SubjectPatientsByStudyCountDto
+    {
+        public int StudyId { get; set; }
+        public string StudyName { get; set; } = string.Empty;
+        public int PatientCount { get; set; }
+    }
+
+    public sealed class SubjectStatusCountDto
+    {
+        public string StatusName { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    public sealed class SubjectStudyStatusBreakdownDto
+    {
+        public int StudyId { get; set; }
+        public string StudyName { get; set; } = string.Empty;
+        public int TotalCount { get; set; }
+        public IReadOnlyList<SubjectStatusCountDto> ByStatus { get; set; } = Array.Empty<SubjectStatusCountDto>();
+    }
+
+    public sealed class SubjectTestDataStatsDto
+    {
+        public int SubjectCount { get; set; }
+        public IReadOnlyList<SubjectPatientsByStudyCountDto> PatientsByStudy { get; set; } = Array.Empty<SubjectPatientsByStudyCountDto>();
+        public IReadOnlyList<SubjectStudyStatusBreakdownDto> TopStudiesBySubjectStatus { get; set; } = Array.Empty<SubjectStudyStatusBreakdownDto>();
     }
 }
 
