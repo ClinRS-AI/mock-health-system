@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using MockHealthSystem.Api.RateLimiting;
 using MockHealthSystem.Infrastructure.Data;
 using MockHealthSystem.Infrastructure.Data.Entities;
 using Xunit;
@@ -16,6 +17,10 @@ public sealed class TestDataManagementEndpointTests : IClassFixture<IsolatedWebA
     public TestDataManagementEndpointTests(IsolatedWebApplicationFactory factory)
     {
         _factory = factory;
+
+        // /api/v1/admin/sessions and /soap/report share the strict, always-on credential
+        // rate limit. Reset it per test so one Fact's calls don't count against the next.
+        factory.Services.GetRequiredService<IRateLimitCounterStore>().ResetAll();
     }
 
     [Fact]

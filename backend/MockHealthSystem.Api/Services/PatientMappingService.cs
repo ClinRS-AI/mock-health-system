@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MockHealthSystem.Api.Models;
 using MockHealthSystem.Api.Models.Patients;
 using MockHealthSystem.Infrastructure.Data.Entities;
 
@@ -149,48 +150,48 @@ public static class PatientMappingService
 
     public static void ApplyPatchModel(Patient entity, PatientPatchModel model)
     {
-        if (model.PrimarySiteId.HasValue) entity.PrimarySiteId = model.PrimarySiteId;
-        if (model.FirstName != null) entity.FirstName = model.FirstName;
-        if (model.MiddleName != null) entity.MiddleName = model.MiddleName;
-        if (model.LastName != null) entity.LastName = model.LastName;
-        if (model.PhoneticName != null) entity.PhoneticName = model.PhoneticName;
-        if (model.PreferredName != null) entity.PreferredName = model.PreferredName;
-        if (model.Title != null) entity.Title = model.Title;
-        if (model.Country != null) entity.Country = model.Country;
-        if (model.Address1 != null) entity.Address1 = model.Address1;
-        if (model.Address2 != null) entity.Address2 = model.Address2;
-        if (model.Address3 != null) entity.Address3 = model.Address3;
-        if (model.City != null) entity.City = model.City;
-        if (model.State != null) entity.State = model.State;
-        if (model.Zip != null) entity.Zip = model.Zip;
-        if (model.DoNotMail.HasValue) entity.DoNotMail = model.DoNotMail.Value;
-        if (model.RecruitmentTextOptIn.HasValue) entity.RecruitmentTextOptIn = model.RecruitmentTextOptIn.Value;
-        if (model.PhoneTypeToText != null) entity.PhoneTypeToText = model.PhoneTypeToText;
-        if (model.Fax != null) entity.Fax = model.Fax;
-        if (model.DateOfBirth.HasValue) entity.DateOfBirth = model.DateOfBirth;
-        if (model.DateOfDeath.HasValue) entity.DateOfDeath = model.DateOfDeath;
-        if (model.GenderCode != null) entity.GenderCode = model.GenderCode;
-        if (model.Race != null) entity.Race = model.Race;
-        if (model.Ethnicity != null) entity.Ethnicity = model.Ethnicity;
-        if (model.NativeLanguage != null) entity.NativeLanguage = model.NativeLanguage;
-        if (model.MaritalStatus != null) entity.MaritalStatus = model.MaritalStatus;
-        if (model.Weight != null) { entity.WeightValue = model.Weight.Value; entity.WeightUnit = model.Weight.Unit; }
-        if (model.Height != null) { entity.HeightValue = model.Height.Value; entity.HeightUnit = model.Height.Unit; }
-        if (model.Ssn != null) entity.Ssn = model.Ssn;
-        if (model.Mrn != null) entity.Mrn = model.Mrn;
-        if (model.ImportId.HasValue) entity.ImportId = model.ImportId;
-        if (model.ImportSourceId != null) entity.ImportSourceId = model.ImportSourceId;
-        if (model.ImportPatientId != null) entity.ImportPatientId = model.ImportPatientId;
-        if (model.Uid.HasValue) entity.Uid = model.Uid;
-        if (model.ManagedMedicare.HasValue) entity.ManagedMedicare = model.ManagedMedicare.Value;
-        if (model.CaregiverId.HasValue) entity.CaregiverId = model.CaregiverId;
-        if (model.Caregiver.HasValue) entity.Caregiver = model.Caregiver.Value;
-        if (model.PrimaryEmail != null) { entity.PrimaryEmailAddress = model.PrimaryEmail.Email; entity.PrimaryDoNotEmail = model.PrimaryEmail.DoNotEmail; }
-        if (model.SecondaryEmail != null) { entity.SecondaryEmailAddress = model.SecondaryEmail.Email; entity.SecondaryDoNotEmail = model.SecondaryEmail.DoNotEmail; }
-        if (model.Guardian != null) entity.GuardianJson = JsonSerializer.Serialize(model.Guardian, JsonOptions);
-        if (model.PrimaryInsurance != null) entity.PrimaryInsuranceJson = JsonSerializer.Serialize(model.PrimaryInsurance, JsonOptions);
-        if (model.SecondaryInsurance != null) entity.SecondaryInsuranceJson = JsonSerializer.Serialize(model.SecondaryInsurance, JsonOptions);
-        if (model.CustomFields != null) entity.CustomFieldsJson = JsonSerializer.Serialize(model.CustomFields, JsonOptions);
+        if (model.PrimarySiteId.IsSet) entity.PrimarySiteId = model.PrimarySiteId.Value;
+        if (model.FirstName.IsSet) entity.FirstName = model.FirstName.Value ?? throw new ArgumentException("FirstName cannot be cleared to null.", nameof(model));
+        if (model.MiddleName.IsSet) entity.MiddleName = model.MiddleName.Value;
+        if (model.LastName.IsSet) entity.LastName = model.LastName.Value ?? throw new ArgumentException("LastName cannot be cleared to null.", nameof(model));
+        if (model.PhoneticName.IsSet) entity.PhoneticName = model.PhoneticName.Value;
+        if (model.PreferredName.IsSet) entity.PreferredName = model.PreferredName.Value;
+        if (model.Title.IsSet) entity.Title = model.Title.Value;
+        if (model.Country.IsSet) entity.Country = model.Country.Value;
+        if (model.Address1.IsSet) entity.Address1 = model.Address1.Value;
+        if (model.Address2.IsSet) entity.Address2 = model.Address2.Value;
+        if (model.Address3.IsSet) entity.Address3 = model.Address3.Value;
+        if (model.City.IsSet) entity.City = model.City.Value;
+        if (model.State.IsSet) entity.State = model.State.Value;
+        if (model.Zip.IsSet) entity.Zip = model.Zip.Value;
+        if (model.DoNotMail.IsSet) entity.DoNotMail = model.DoNotMail.Value;
+        if (model.RecruitmentTextOptIn.IsSet) entity.RecruitmentTextOptIn = model.RecruitmentTextOptIn.Value;
+        if (model.PhoneTypeToText.IsSet) entity.PhoneTypeToText = model.PhoneTypeToText.Value;
+        if (model.Fax.IsSet) entity.Fax = model.Fax.Value;
+        if (model.DateOfBirth.IsSet) entity.DateOfBirth = model.DateOfBirth.Value;
+        if (model.DateOfDeath.IsSet) entity.DateOfDeath = model.DateOfDeath.Value;
+        if (model.GenderCode.IsSet) entity.GenderCode = model.GenderCode.Value;
+        if (model.Race.IsSet) entity.Race = model.Race.Value;
+        if (model.Ethnicity.IsSet) entity.Ethnicity = model.Ethnicity.Value;
+        if (model.NativeLanguage.IsSet) entity.NativeLanguage = model.NativeLanguage.Value;
+        if (model.MaritalStatus.IsSet) entity.MaritalStatus = model.MaritalStatus.Value;
+        if (model.Weight.IsSet) { entity.WeightValue = model.Weight.Value?.Value; entity.WeightUnit = model.Weight.Value?.Unit; }
+        if (model.Height.IsSet) { entity.HeightValue = model.Height.Value?.Value; entity.HeightUnit = model.Height.Value?.Unit; }
+        if (model.Ssn.IsSet) entity.Ssn = model.Ssn.Value;
+        if (model.Mrn.IsSet) entity.Mrn = model.Mrn.Value;
+        if (model.ImportId.IsSet) entity.ImportId = model.ImportId.Value;
+        if (model.ImportSourceId.IsSet) entity.ImportSourceId = model.ImportSourceId.Value;
+        if (model.ImportPatientId.IsSet) entity.ImportPatientId = model.ImportPatientId.Value;
+        if (model.Uid.IsSet) entity.Uid = model.Uid.Value;
+        if (model.ManagedMedicare.IsSet) entity.ManagedMedicare = model.ManagedMedicare.Value;
+        if (model.CaregiverId.IsSet) entity.CaregiverId = model.CaregiverId.Value;
+        if (model.Caregiver.IsSet) entity.Caregiver = model.Caregiver.Value;
+        if (model.PrimaryEmail.IsSet) { entity.PrimaryEmailAddress = model.PrimaryEmail.Value?.Email; entity.PrimaryDoNotEmail = model.PrimaryEmail.Value?.DoNotEmail ?? false; }
+        if (model.SecondaryEmail.IsSet) { entity.SecondaryEmailAddress = model.SecondaryEmail.Value?.Email; entity.SecondaryDoNotEmail = model.SecondaryEmail.Value?.DoNotEmail ?? false; }
+        if (model.Guardian.IsSet) entity.GuardianJson = model.Guardian.Value == null ? null : JsonSerializer.Serialize(model.Guardian.Value, JsonOptions);
+        if (model.PrimaryInsurance.IsSet) entity.PrimaryInsuranceJson = model.PrimaryInsurance.Value == null ? null : JsonSerializer.Serialize(model.PrimaryInsurance.Value, JsonOptions);
+        if (model.SecondaryInsurance.IsSet) entity.SecondaryInsuranceJson = model.SecondaryInsurance.Value == null ? null : JsonSerializer.Serialize(model.SecondaryInsurance.Value, JsonOptions);
+        if (model.CustomFields.IsSet) entity.CustomFieldsJson = model.CustomFields.Value == null ? null : JsonSerializer.Serialize(model.CustomFields.Value, JsonOptions);
         ApplyPhoneSlot(entity, 1, model.Phone1);
         ApplyPhoneSlot(entity, 2, model.Phone2);
         ApplyPhoneSlot(entity, 3, model.Phone3);
@@ -200,19 +201,20 @@ public static class PatientMappingService
     // Upserts in place rather than replacing, so an omitted slot in a PATCH body stays untouched.
     // PUT (PatientsController.SyncPhonesFromEdit) deletes and recreates instead, since a full
     // replace must clear slots the caller didn't send. Don't unify these without changing one
-    // of those semantics.
-    private static void ApplyPhoneSlot(Patient entity, int slot, PatientPhoneEditModel? model)
+    // of those semantics. An explicit "phoneN": null is treated the same as omitting the slot,
+    // since PATCH never deletes a phone slot -- clearing one requires the PUT phones endpoint.
+    private static void ApplyPhoneSlot(Patient entity, int slot, Optional<PatientPhoneEditModel?> model)
     {
-        if (model == null) return;
-        var rawNumber = string.IsNullOrEmpty(model.Number) ? null : new string(model.Number.Where(char.IsDigit).ToArray());
+        if (!model.IsSet || model.Value == null) return;
+        var rawNumber = string.IsNullOrEmpty(model.Value.Number) ? null : new string(model.Value.Number.Where(char.IsDigit).ToArray());
         var phone = entity.Phones.FirstOrDefault(p => p.Slot == slot);
         if (phone == null)
         {
-            entity.Phones.Add(new PatientPhone { PatientId = entity.Id, Slot = slot, Number = model.Number, RawNumber = rawNumber });
+            entity.Phones.Add(new PatientPhone { PatientId = entity.Id, Slot = slot, Number = model.Value.Number, RawNumber = rawNumber });
         }
         else
         {
-            phone.Number = model.Number;
+            phone.Number = model.Value.Number;
             phone.RawNumber = rawNumber;
         }
     }

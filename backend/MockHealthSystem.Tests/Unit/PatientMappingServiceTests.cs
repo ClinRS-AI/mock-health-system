@@ -450,6 +450,82 @@ public sealed class PatientMappingServiceTests
         Assert.True(entity.PrimaryDoNotEmail);
     }
 
+    [Fact]
+    public void ApplyPatchModel_ClearsDateOfBirth_WhenExplicitlySetToNull()
+    {
+        var entity = new Patient { DateOfBirth = new DateTime(1975, 12, 18, 0, 0, 0, DateTimeKind.Utc) };
+        var model = new PatientPatchModel { DateOfBirth = null };
+
+        PatientMappingService.ApplyPatchModel(entity, model);
+
+        Assert.Null(entity.DateOfBirth);
+    }
+
+    [Fact]
+    public void ApplyPatchModel_LeavesDateOfBirth_WhenOmitted()
+    {
+        var dob = new DateTime(1975, 12, 18, 0, 0, 0, DateTimeKind.Utc);
+        var entity = new Patient { DateOfBirth = dob };
+        var model = new PatientPatchModel { City = "SomeCity" };
+
+        PatientMappingService.ApplyPatchModel(entity, model);
+
+        Assert.Equal(dob, entity.DateOfBirth);
+    }
+
+    [Fact]
+    public void ApplyPatchModel_ClearsNullableStringField_WhenExplicitlySetToNull()
+    {
+        var entity = new Patient { MiddleName = "Q" };
+        var model = new PatientPatchModel { MiddleName = null };
+
+        PatientMappingService.ApplyPatchModel(entity, model);
+
+        Assert.Null(entity.MiddleName);
+    }
+
+    [Fact]
+    public void ApplyPatchModel_ClearsPrimarySiteId_WhenExplicitlySetToNull()
+    {
+        var entity = new Patient { PrimarySiteId = 42 };
+        var model = new PatientPatchModel { PrimarySiteId = null };
+
+        PatientMappingService.ApplyPatchModel(entity, model);
+
+        Assert.Null(entity.PrimarySiteId);
+    }
+
+    [Fact]
+    public void ApplyPatchModel_Throws_WhenFirstNameExplicitlySetToNull()
+    {
+        var entity = MinimalPatient();
+        var model = new PatientPatchModel { FirstName = null };
+
+        Assert.Throws<ArgumentException>(() => PatientMappingService.ApplyPatchModel(entity, model));
+    }
+
+    [Fact]
+    public void ApplyPatchModel_Throws_WhenLastNameExplicitlySetToNull()
+    {
+        var entity = MinimalPatient();
+        var model = new PatientPatchModel { LastName = null };
+
+        Assert.Throws<ArgumentException>(() => PatientMappingService.ApplyPatchModel(entity, model));
+    }
+
+    [Fact]
+    public void ApplyPatchModel_IgnoresPhoneSlot_WhenExplicitlySetToNull()
+    {
+        var entity = MinimalPatient();
+        entity.Phones.Add(new PatientPhone { PatientId = entity.Id, Slot = 1, Number = "585-111-1111", RawNumber = "5851111111" });
+        var model = new PatientPatchModel { Phone1 = null };
+
+        PatientMappingService.ApplyPatchModel(entity, model);
+
+        Assert.Single(entity.Phones);
+        Assert.Equal("585-111-1111", entity.Phones.Single().Number);
+    }
+
     // ---- ApplyStatus ----
 
     [Fact]

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MockHealthSystem.Api.RateLimiting;
 using MockHealthSystem.Api.Services;
 using MockHealthSystem.Infrastructure.Data;
 using MockHealthSystem.Infrastructure.Data.Entities;
@@ -18,6 +19,10 @@ public sealed class MonitoringEndpointTests : IClassFixture<IsolatedWebApplicati
     public MonitoringEndpointTests(IsolatedWebApplicationFactory factory)
     {
         _factory = factory;
+
+        // /api/v1/admin/sessions shares the strict, always-on credential rate limit. Reset
+        // it per test so one Fact's calls don't count against the next Fact's budget.
+        factory.Services.GetRequiredService<IRateLimitCounterStore>().ResetAll();
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MockHealthSystem.Api.RateLimiting;
@@ -181,6 +182,74 @@ public sealed class RateLimitEndpointTests : IClassFixture<IsolatedWebApplicatio
 
         var afterReset = await client.GetAsync("/api/v1/health");
         Assert.NotEqual(HttpStatusCode.TooManyRequests, afterReset.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdminSessionMint_Returns429_WhenCredentialRateLimitExceeded_EvenWithGeneralRateLimitDisabled()
+    {
+        // Credential-endpoint throttling is not gated by AuthSettings.RateLimitEnabled.
+        await DisableRateLimitAsync();
+        var client = _factory.CreateClient();
+
+        var responses = new List<HttpResponseMessage>();
+        for (var i = 0; i < 6; i++)
+        {
+            responses.Add(await client.PostAsJsonAsync("/api/v1/admin/sessions", new { adminKey = "guess" }));
+        }
+
+        Assert.All(responses.Take(5), r => Assert.NotEqual(HttpStatusCode.TooManyRequests, r.StatusCode));
+        Assert.Equal(HttpStatusCode.TooManyRequests, responses[5].StatusCode);
+    }
+
+    [Fact]
+    public async Task AuthToken_Returns429_WhenCredentialRateLimitExceeded_EvenWithGeneralRateLimitDisabled()
+    {
+        await DisableRateLimitAsync();
+        var client = _factory.CreateClient();
+
+        var responses = new List<HttpResponseMessage>();
+        for (var i = 0; i < 6; i++)
+        {
+            responses.Add(await client.PostAsJsonAsync("/api/v1/auth/token", new { clientId = "c", clientSecret = "guess" }));
+        }
+
+        Assert.All(responses.Take(5), r => Assert.NotEqual(HttpStatusCode.TooManyRequests, r.StatusCode));
+        Assert.Equal(HttpStatusCode.TooManyRequests, responses[5].StatusCode);
+    }
+
+    [Fact]
+    public async Task CredentialRateLimit_ResponseBody_IsValidApiErrorResponse()
+    {
+        await DisableRateLimitAsync();
+        var client = _factory.CreateClient();
+
+        for (var i = 0; i < 5; i++)
+        {
+            await client.PostAsJsonAsync("/api/v1/admin/sessions", new { adminKey = "guess" });
+        }
+        var resp = await client.PostAsJsonAsync("/api/v1/admin/sessions", new { adminKey = "guess" });
+
+        await ApiErrorAssertions.AssertApiErrorAsync(
+            resp,
+            HttpStatusCode.TooManyRequests,
+            titleContains: "Too Many Requests");
+    }
+
+    [Fact]
+    public async Task ExhaustingCredentialRateLimit_DoesNotThrottleUnrelatedAdminPaths()
+    {
+        // /api/v1/admin/sessions and /api/v1/auth-settings use separate counters even though
+        // both are "admin" paths — exhausting the strict credential bucket must not spill over.
+        await DisableRateLimitAsync();
+        var client = _factory.CreateClient();
+
+        for (var i = 0; i < 6; i++)
+        {
+            await client.PostAsJsonAsync("/api/v1/admin/sessions", new { adminKey = "guess" });
+        }
+
+        var authSettingsResp = await client.GetAsync("/api/v1/auth-settings");
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, authSettingsResp.StatusCode);
     }
 
     // ---- Helpers ----

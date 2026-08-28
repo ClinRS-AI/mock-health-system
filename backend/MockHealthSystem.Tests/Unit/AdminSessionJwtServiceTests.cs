@@ -36,4 +36,57 @@ public sealed class AdminSessionJwtServiceTests
 
         Assert.False(sut.TryValidateSessionToken(minted.AccessToken, out _));
     }
+
+    private static AdminSessionJwtService CreateService(IConfiguration? config = null) =>
+        new(
+            config ?? new ConfigurationBuilder().AddInMemoryCollection().Build(),
+            Options.Create(new AdminSessionOptions { TtlMinutes = 30 }),
+            new FakeTimeProvider(DateTimeOffset.UtcNow));
+
+    [Fact]
+    public void CreateSessionToken_ReturnsNull_WhenAdminKeyShorterThanMinimumAndNoExplicitSigningKey()
+    {
+        using var adminKey = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "short-key");
+        using var signingKey = new EnvironmentVariableScope("ADMIN_SESSION_SIGNING_KEY", null);
+        Assert.True("short-key".Length < AdminSessionJwtService.MinimumAdminKeyLengthForDerivedSigningKey);
+
+        var sut = CreateService();
+
+        Assert.Null(sut.CreateSessionToken());
+    }
+
+    [Fact]
+    public void TryValidateSessionToken_Fails_WhenAdminKeyShorterThanMinimumAndNoExplicitSigningKey()
+    {
+        using var adminKey = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "short-key");
+        using var signingKey = new EnvironmentVariableScope("ADMIN_SESSION_SIGNING_KEY", null);
+        var sut = CreateService();
+
+        var ok = sut.TryValidateSessionToken("irrelevant-token", out var failureReason);
+
+        Assert.False(ok);
+        Assert.Equal("signing_key_unavailable", failureReason);
+    }
+
+    [Fact]
+    public void CreateSessionToken_Succeeds_WhenAdminKeyMeetsMinimumLength()
+    {
+        var adminKeyValue = new string('a', AdminSessionJwtService.MinimumAdminKeyLengthForDerivedSigningKey);
+        using var adminKey = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", adminKeyValue);
+        using var signingKey = new EnvironmentVariableScope("ADMIN_SESSION_SIGNING_KEY", null);
+        var sut = CreateService();
+
+        Assert.NotNull(sut.CreateSessionToken());
+    }
+
+    [Fact]
+    public void CreateSessionToken_Succeeds_WhenExplicitSigningKeySet_EvenIfAdminKeyTooShort()
+    {
+        using var adminKey = new EnvironmentVariableScope("AUTH_SETTINGS_ADMIN_KEY", "sk");
+        using var signingKey = new EnvironmentVariableScope(
+            "ADMIN_SESSION_SIGNING_KEY", "a-sufficiently-long-explicit-signing-key");
+        var sut = CreateService();
+
+        Assert.NotNull(sut.CreateSessionToken());
+    }
 }

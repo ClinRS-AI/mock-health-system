@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MockHealthSystem.Api.RateLimiting;
 using MockHealthSystem.Infrastructure.Data;
 using MockHealthSystem.Infrastructure.Data.Entities;
 using Xunit;
@@ -16,6 +17,10 @@ public sealed class AuthSettingsEndpointTests : IClassFixture<IsolatedWebApplica
     public AuthSettingsEndpointTests(IsolatedWebApplicationFactory factory)
     {
         _factory = factory;
+
+        // /api/v1/admin/sessions shares the strict, always-on credential rate limit. Reset
+        // it per test so one Fact's calls don't count against the next Fact's budget.
+        factory.Services.GetRequiredService<IRateLimitCounterStore>().ResetAll();
     }
 
     // ---- GET /auth-settings ----
