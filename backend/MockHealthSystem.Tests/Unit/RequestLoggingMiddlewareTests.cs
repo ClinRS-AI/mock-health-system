@@ -42,7 +42,8 @@ public sealed class RequestLoggingMiddlewareTests
         string? queryString = null,
         string? requestBody = null,
         string? origin = null,
-        string? referer = null)
+        string? referer = null,
+        bool setContentLength = true)
     {
         var ctx = new DefaultHttpContext();
         ctx.Request.Method = method;
@@ -56,7 +57,10 @@ public sealed class RequestLoggingMiddlewareTests
         {
             var bytes = Encoding.UTF8.GetBytes(requestBody);
             ctx.Request.Body = new MemoryStream(bytes);
-            ctx.Request.ContentLength = bytes.Length;
+            if (setContentLength)
+            {
+                ctx.Request.ContentLength = bytes.Length;
+            }
         }
 
         if (origin is not null)
@@ -177,6 +181,29 @@ public sealed class RequestLoggingMiddlewareTests
     }
 
     [Fact]
+    public async Task Invoke_CapturesRequestBody_WhenContentLengthIsNotSet()
+    {
+        // Chunked-encoded and HTTP/2 requests often omit Content-Length even though the body
+        // is fully present; the middleware must not rely on it to decide whether to read.
+        await using var db = CreateDb(nameof(Invoke_CapturesRequestBody_WhenContentLengthIsNotSet));
+
+        var middleware = new RequestLoggingMiddleware(
+            next: ctx =>
+            {
+                ctx.Response.StatusCode = 200;
+                return Task.CompletedTask;
+            },
+            logger: NullLogger<RequestLoggingMiddleware>.Instance,
+            configuration: CreateConfig(null));
+
+        var ctx = CreateContext(method: "PATCH", requestBody: "{\"city\":\"NewCity\"}", setContentLength: false);
+        await middleware.InvokeAsync(ctx, db);
+
+        var log = await db.ApiRequestLogs.SingleAsync();
+        Assert.Equal("{\"city\":\"NewCity\"}", log.RequestBody);
+    }
+
+    [Fact]
     public async Task Invoke_TruncatesRequestBody_WhenLargerThan4096Chars()
     {
         await using var db = CreateDb(nameof(Invoke_TruncatesRequestBody_WhenLargerThan4096Chars));
@@ -249,6 +276,85 @@ public sealed class RequestLoggingMiddlewareTests
         var ex = await Record.ExceptionAsync(() => middleware.InvokeAsync(ctx, db));
         Assert.Null(ex);
         Assert.Equal(200, ctx.Response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("POST", "/api/v1/admin/sessions")]
+    [InlineData("POST", "/api/v1/auth/token")]
+    [InlineData("POST", "/api/v1/auth/refresh")]
+    [InlineData("GET", "/api/v1/auth-settings")]
+    [InlineData("PUT", "/api/v1/auth-settings")]
+    [InlineData("POST", "/soap/report")]
+    public async Task Invoke_RedactsBodies_ForCredentialEndpoints(string method, string path)
+    {
+        await using var db = CreateDb($"{nameof(Invoke_RedactsBodies_ForCredentialEndpoints)}_{method}_{path}");
+
+        var middleware = new RequestLoggingMiddleware(
+            next: async ctx =>
+            {
+                ctx.Response.StatusCode = 200;
+                var bytes = Encoding.UTF8.GetBytes("{\"adminKey\":\"super-secret\"}");
+                await ctx.Response.Body.WriteAsync(bytes);
+            },
+            logger: NullLogger<RequestLoggingMiddleware>.Instance,
+            configuration: CreateConfig(null));
+
+        var ctx = CreateContext(method: method, path: path, requestBody: "{\"adminKey\":\"super-secret\"}");
+        await middleware.InvokeAsync(ctx, db);
+
+        var log = await db.ApiRequestLogs.SingleAsync();
+        Assert.DoesNotContain("super-secret", log.RequestBody);
+        Assert.DoesNotContain("super-secret", log.ResponseBody);
+        Assert.Equal("[redacted: credential endpoint]", log.RequestBody);
+        Assert.Equal("[redacted: credential endpoint]", log.ResponseBody);
+    }
+
+    [Theory]
+    [InlineData("POST", "/api/v1/admin/sessions")]
+    [InlineData("PUT", "/api/v1/auth-settings")]
+    [InlineData("POST", "/soap/report")]
+    public async Task Invoke_AlwaysLogsCredentialEndpoints_EvenWhenOriginMatchesFrontend(string method, string path)
+    {
+        // Origin/Referer are attacker-controlled; a caller brute-forcing a credential
+        // endpoint must not be able to spoof its way out of the audit trail.
+        await using var db = CreateDb($"{nameof(Invoke_AlwaysLogsCredentialEndpoints_EvenWhenOriginMatchesFrontend)}_{method}_{path}");
+
+        var middleware = new RequestLoggingMiddleware(
+            next: ctx =>
+            {
+                ctx.Response.StatusCode = 403;
+                return Task.CompletedTask;
+            },
+            logger: NullLogger<RequestLoggingMiddleware>.Instance,
+            configuration: CreateConfig("http://localhost:5176"));
+
+        var ctx = CreateContext(method: method, path: path, origin: "http://localhost:5176", requestBody: "{\"adminKey\":\"guess\"}");
+        await middleware.InvokeAsync(ctx, db);
+
+        var log = await db.ApiRequestLogs.SingleAsync();
+        Assert.Equal(403, log.StatusCode);
+        Assert.Equal("[redacted: credential endpoint]", log.RequestBody);
+    }
+
+    [Fact]
+    public async Task Invoke_SkipsLogging_WhenOriginMatchesFrontend_ForNonCredentialEndpoint()
+    {
+        // Non-credential UI traffic still benefits from the noise-reduction exclusion.
+        await using var db = CreateDb(nameof(Invoke_SkipsLogging_WhenOriginMatchesFrontend_ForNonCredentialEndpoint));
+
+        var middleware = new RequestLoggingMiddleware(
+            next: ctx =>
+            {
+                ctx.Response.StatusCode = 200;
+                return Task.CompletedTask;
+            },
+            logger: NullLogger<RequestLoggingMiddleware>.Instance,
+            configuration: CreateConfig("http://localhost:5176"));
+
+        var ctx = CreateContext(path: "/api/v1/monitoring/requests", origin: "http://localhost:5176");
+        await middleware.InvokeAsync(ctx, db);
+
+        Assert.Equal(0, await db.ApiRequestLogs.CountAsync());
     }
 
     [Fact]

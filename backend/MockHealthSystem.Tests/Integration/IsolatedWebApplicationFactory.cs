@@ -11,7 +11,7 @@ namespace MockHealthSystem.Tests.Integration;
 /// Factory that overrides the DbContext to use a unique in-memory database name per instance.
 /// This prevents test classes running in parallel from sharing the same in-memory database.
 /// </summary>
-public sealed class IsolatedWebApplicationFactory : WebApplicationFactory<Program>
+public class IsolatedWebApplicationFactory : WebApplicationFactory<Program>
 {
     // One unique DB per factory instance → one per test class (IClassFixture creates one per class).
     private readonly string _dbName = $"TestDb_{Guid.NewGuid():N}";

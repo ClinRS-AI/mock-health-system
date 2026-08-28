@@ -14,6 +14,14 @@ public sealed class AdminSessionJwtService : IAdminSessionJwtService
     public const string AdminSessionClaimType = "mhs_admin_session";
     public const string AdminSessionClaimValue = "1";
 
+    // Without an explicit ADMIN_SESSION_SIGNING_KEY, the JWT secret is SHA-256(adminKey) with
+    // no KDF stretching, so the signing key's entropy is exactly the admin key's entropy. Below
+    // this length, refuse to derive a signing key at all rather than mint tokens off a secret
+    // that's both easy to brute-force at the mint endpoint and, if a JWT ever leaks, crackable
+    // offline (classic HS256-secret-recovery). Operators with a short admin key should set
+    // ADMIN_SESSION_SIGNING_KEY explicitly instead.
+    public const int MinimumAdminKeyLengthForDerivedSigningKey = 12;
+
     private readonly IConfiguration _configuration;
     private readonly IOptions<AdminSessionOptions> _options;
     private readonly TimeProvider _time;
@@ -124,10 +132,15 @@ public sealed class AdminSessionJwtService : IAdminSessionJwtService
             return NormalizeKeyLength(ref keyBytes);
         }
 
-        var adminKey = Environment.GetEnvironmentVariable("AUTH_SETTINGS_ADMIN_KEY");
+        var adminKey = Environment.GetEnvironmentVariable("AUTH_SETTINGS_ADMIN_KEY")?.Trim();
         if (!string.IsNullOrWhiteSpace(adminKey))
         {
-            keyBytes = SHA256.HashData(Encoding.UTF8.GetBytes(adminKey.Trim()));
+            if (adminKey.Length < MinimumAdminKeyLengthForDerivedSigningKey)
+            {
+                return false;
+            }
+
+            keyBytes = SHA256.HashData(Encoding.UTF8.GetBytes(adminKey));
             return true;
         }
 

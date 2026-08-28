@@ -248,8 +248,21 @@ if (!app.Environment.IsDevelopment())
     {
         ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
     };
-    forwarded.KnownIPNetworks.Clear();
-    forwarded.KnownProxies.Clear();
+
+    // Clearing these lists tells the middleware to trust X-Forwarded-For/-Proto from
+    // whoever is directly connected, with no hop-count or network restriction. That's only
+    // safe when the container is reachable exclusively through Cloud Run's own front end
+    // (which always sets X-Forwarded-For itself and cannot be bypassed by external callers).
+    // Cloud Run sets K_SERVICE on every revision, so use it as the deployment-topology
+    // signal. Outside Cloud Run, keep ASP.NET Core's default (loopback-only) trust so an
+    // arbitrary caller can't spoof its IP for rate limiting and audit logging.
+    var isCloudRun = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("K_SERVICE"));
+    if (isCloudRun)
+    {
+        forwarded.KnownIPNetworks.Clear();
+        forwarded.KnownProxies.Clear();
+    }
+
     app.UseForwardedHeaders(forwarded);
 }
 

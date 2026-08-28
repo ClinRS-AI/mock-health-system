@@ -16,6 +16,13 @@ public sealed class SoapReportEndpointTests : IClassFixture<IsolatedWebApplicati
     public SoapReportEndpointTests(IsolatedWebApplicationFactory factory)
     {
         _factory = factory;
+
+        // Note: this class's 5 total /soap/report POST calls stay under the strict credential
+        // rate limit (5/sec, 20/min) without needing a counter reset — and eagerly resolving
+        // factory.Services here (to reset it) would force the host to build before this test's
+        // EnvironmentVariableScope sets SOAP_REPORT_PASSWORD, freezing a stale IConfiguration
+        // snapshot for the whole class (SOAP_REPORT_PASSWORD is read via IConfiguration, unlike
+        // AUTH_SETTINGS_ADMIN_KEY which reads live from Environment.GetEnvironmentVariable).
     }
 
     [Fact]

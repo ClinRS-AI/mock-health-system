@@ -20,6 +20,22 @@ public sealed class RateLimitingMiddleware
     private const int AdminPerSecond = 120;
     private const int AdminPerMinute = 5000;
 
+    // Endpoints that verify a shared secret (admin key, OAuth client secret, refresh token,
+    // SOAP report password) get a strict, non-configurable limit regardless of the
+    // AdminPerSecond/AdminPerMinute allowance above and regardless of whether the
+    // per-client RateLimitEnabled toggle is on — these are brute-force targets, not
+    // general traffic, so throttling them can't be an opt-in.
+    private static readonly (string Method, PathString Path)[] CredentialPaths =
+    [
+        (HttpMethods.Post, new PathString("/api/v1/admin/sessions")),
+        (HttpMethods.Post, new PathString("/api/v1/auth/token")),
+        (HttpMethods.Post, new PathString("/api/v1/auth/refresh")),
+        (HttpMethods.Post, new PathString("/soap/report")),
+    ];
+
+    private const int CredentialPerSecond = 5;
+    private const int CredentialPerMinute = 20;
+
     private static readonly JsonSerializerOptions JsonOptions =
         new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -37,6 +53,20 @@ public sealed class RateLimitingMiddleware
     {
         // Use loopback as fallback — null RemoteIpAddress should not bypass rate limiting
         var ip = context.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+
+        if (IsCredentialPath(context.Request))
+        {
+            var (credentialAllowed, credentialRetryAfter) = counterStore.CheckAndIncrement(
+                ip + ":credential", CredentialPerSecond, CredentialPerMinute);
+            if (!credentialAllowed)
+            {
+                await WriteTooManyRequestsAsync(context, credentialRetryAfter);
+                return;
+            }
+
+            await _next(context);
+            return;
+        }
 
         var path = context.Request.Path;
         bool isAdminPath = IsAdminPath(path);
@@ -77,6 +107,20 @@ public sealed class RateLimitingMiddleware
             if (path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase))
                 return true;
         }
+        return false;
+    }
+
+    private static bool IsCredentialPath(HttpRequest request)
+    {
+        foreach (var (method, path) in CredentialPaths)
+        {
+            if (string.Equals(request.Method, method, StringComparison.OrdinalIgnoreCase) &&
+                request.Path.Equals(path, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 

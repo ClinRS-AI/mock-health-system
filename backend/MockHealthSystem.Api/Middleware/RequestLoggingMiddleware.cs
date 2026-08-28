@@ -9,6 +9,21 @@ namespace MockHealthSystem.Api.Middleware;
 public sealed class RequestLoggingMiddleware
 {
     private const int BodyMaxLength = 4096;
+    private const string RedactedBodyPlaceholder = "[redacted: credential endpoint]";
+
+    // Endpoints that carry raw secrets or issued tokens in their request/response bodies.
+    // These are always logged (never skipped via the frontend-origin check, which is
+    // attacker-controlled) with bodies redacted rather than stored, so the audit trail
+    // still records that the call happened without persisting the credential itself.
+    private static readonly (string Method, PathString Path)[] SensitivePaths =
+    {
+        (HttpMethods.Post, new PathString("/api/v1/admin/sessions")),
+        (HttpMethods.Post, new PathString("/api/v1/auth/token")),
+        (HttpMethods.Post, new PathString("/api/v1/auth/refresh")),
+        (HttpMethods.Get, new PathString("/api/v1/auth-settings")),
+        (HttpMethods.Put, new PathString("/api/v1/auth-settings")),
+        (HttpMethods.Post, new PathString("/soap/report")),
+    };
 
     private readonly RequestDelegate _next;
     private readonly ILogger<RequestLoggingMiddleware> _logger;
@@ -39,11 +54,15 @@ public sealed class RequestLoggingMiddleware
 
     public async Task InvokeAsync(HttpContext context, AppDbContext dbContext)
     {
-        // Skip logging for UI-originated requests based on Origin/Referer.
+        var isSensitive = IsSensitivePath(context.Request);
+
+        // Skip logging for UI-originated requests based on Origin/Referer, except for
+        // credential endpoints: Origin/Referer are attacker-controlled, so exempting them
+        // here would let an attacker hide brute-force attempts from the audit trail.
         var origin = context.Request.Headers.Origin.ToString();
         var referer = context.Request.Headers.Referer.ToString();
 
-        if (!string.IsNullOrWhiteSpace(_frontendOrigin))
+        if (!isSensitive && !string.IsNullOrWhiteSpace(_frontendOrigin))
         {
             if ((!string.IsNullOrEmpty(origin) && origin.StartsWith(_frontendOrigin, StringComparison.OrdinalIgnoreCase)) ||
                 (!string.IsNullOrEmpty(referer) && referer.StartsWith(_frontendOrigin, StringComparison.OrdinalIgnoreCase)))
@@ -61,8 +80,14 @@ public sealed class RequestLoggingMiddleware
 
         string? requestBody = null;
 
-        if (request.ContentLength > 0 && request.Body.CanRead)
+        if (isSensitive)
         {
+            requestBody = RedactedBodyPlaceholder;
+        }
+        else if (request.Body.CanRead)
+        {
+            // Don't gate on Content-Length: chunked-encoded and HTTP/2 requests often omit it
+            // even though the body is fully present and readable.
             try
             {
                 request.EnableBuffering();
@@ -89,18 +114,27 @@ public sealed class RequestLoggingMiddleware
         {
             stopwatch.Stop();
 
-            string? responseText = null;
-            try
+            string? responseText;
+            if (isSensitive)
             {
-                responseBody.Position = 0;
-                using var reader = new StreamReader(responseBody, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-                var text = await reader.ReadToEndAsync(context.RequestAborted);
-                responseText = Truncate(text, BodyMaxLength);
+                responseText = RedactedBodyPlaceholder;
                 responseBody.Position = 0;
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogDebug(ex, "Failed to read response body for logging.");
+                responseText = null;
+                try
+                {
+                    responseBody.Position = 0;
+                    using var reader = new StreamReader(responseBody, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+                    var text = await reader.ReadToEndAsync(context.RequestAborted);
+                    responseText = Truncate(text, BodyMaxLength);
+                    responseBody.Position = 0;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to read response body for logging.");
+                }
             }
 
             await responseBody.CopyToAsync(originalBodyStream, context.RequestAborted);
@@ -139,6 +173,20 @@ public sealed class RequestLoggingMiddleware
     {
         if (string.IsNullOrEmpty(value)) return value;
         return value.Length <= maxLength ? value : value[..maxLength];
+    }
+
+    private static bool IsSensitivePath(HttpRequest request)
+    {
+        foreach (var (method, path) in SensitivePaths)
+        {
+            if (string.Equals(request.Method, method, StringComparison.OrdinalIgnoreCase) &&
+                request.Path.Equals(path, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

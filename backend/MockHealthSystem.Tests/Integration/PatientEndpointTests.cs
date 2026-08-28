@@ -214,6 +214,86 @@ public sealed class PatientEndpointTests : IClassFixture<IsolatedWebApplicationF
         Assert.Equal("555-000-1111", body.Phone2!.Number);
     }
 
+    [Fact]
+    public async Task PatchPatient_ClearsDateOfBirth_WhenExplicitlySetToNull()
+    {
+        await EnsureNoneModeAsync();
+        var patientId = await SeedPatientAsync("ClearDob", "Test", dateOfBirth: new DateTime(1975, 12, 18, 0, 0, 0, DateTimeKind.Utc));
+        var client = _factory.CreateClient();
+
+        var resp = await client.PatchAsJsonAsync($"/api/v1/patients/{patientId}", new
+        {
+            dateOfBirth = (DateTime?)null
+        });
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<PatientDto>();
+        Assert.Null(body!.DateOfBirth);
+    }
+
+    [Fact]
+    public async Task PatchPatient_LeavesDateOfBirth_WhenOmittedFromBody()
+    {
+        await EnsureNoneModeAsync();
+        var dob = new DateTime(1975, 12, 18, 0, 0, 0, DateTimeKind.Utc);
+        var patientId = await SeedPatientAsync("KeepDob", "Test", dateOfBirth: dob);
+        var client = _factory.CreateClient();
+
+        var resp = await client.PatchAsJsonAsync($"/api/v1/patients/{patientId}", new
+        {
+            city = "PatchedCity"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<PatientDto>();
+        Assert.Equal(dob, body!.DateOfBirth);
+    }
+
+    [Fact]
+    public async Task PatchPatient_Returns400_WhenFirstNameExplicitlySetToNull()
+    {
+        await EnsureNoneModeAsync();
+        var patientId = await SeedPatientAsync("KeepFirst", "Test");
+        var client = _factory.CreateClient();
+
+        var resp = await client.PatchAsJsonAsync($"/api/v1/patients/{patientId}", new
+        {
+            firstName = (string?)null
+        });
+
+        await ApiErrorAssertions.AssertApiErrorAsync(resp, HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task PatchPatient_Returns400_WhenDoNotMailExplicitlySetToNull()
+    {
+        await EnsureNoneModeAsync();
+        var patientId = await SeedPatientAsync("KeepFlags", "Test");
+        var client = _factory.CreateClient();
+
+        var resp = await client.PatchAsJsonAsync($"/api/v1/patients/{patientId}", new
+        {
+            doNotMail = (bool?)null
+        });
+
+        await ApiErrorAssertions.AssertApiErrorAsync(resp, HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task PatchPatient_DoesNotClobberDoNotMail_WhenFieldIsOmitted()
+    {
+        await EnsureNoneModeAsync();
+        var patientId = await SeedPatientAsync("OmitFlags", "Test");
+        var client = _factory.CreateClient();
+
+        await client.PatchAsJsonAsync($"/api/v1/patients/{patientId}", new { doNotMail = true });
+        var resp = await client.PatchAsJsonAsync($"/api/v1/patients/{patientId}", new { city = "StillFlagged" });
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<PatientDto>();
+        Assert.True(body!.DoNotMail);
+    }
+
     // ---- DELETE /patients/{id} ----
 
     [Fact]
@@ -369,7 +449,7 @@ public sealed class PatientEndpointTests : IClassFixture<IsolatedWebApplicationF
 
     private async Task<int> SeedPatientAsync(
         string firstName, string lastName,
-        string? genderCode = null, string status = "Active")
+        string? genderCode = null, string status = "Active", DateTime? dateOfBirth = null)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -380,6 +460,7 @@ public sealed class PatientEndpointTests : IClassFixture<IsolatedWebApplicationF
             LastName = lastName,
             Status = status,
             GenderCode = genderCode,
+            DateOfBirth = dateOfBirth,
             Uid = Guid.NewGuid()
         };
 
@@ -423,8 +504,11 @@ public sealed class PatientEndpointTests : IClassFixture<IsolatedWebApplicationF
         public string? StatusReason { get; set; }
         public string? GenderCode { get; set; }
         public string? City { get; set; }
+        public string? MiddleName { get; set; }
+        public DateTime? DateOfBirth { get; set; }
         public PhoneDto? Phone1 { get; set; }
         public PhoneDto? Phone2 { get; set; }
+        public bool DoNotMail { get; set; }
     }
 
     private sealed class PhoneDto
